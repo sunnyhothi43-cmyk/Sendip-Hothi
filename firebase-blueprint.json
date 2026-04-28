@@ -1,0 +1,55 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Metadata and usage stats for a user",
+      "type": "object",
+      "properties": {
+        "favoritesCount": { "type": "number" },
+        "printCount": { "type": "number" },
+        "isSubscribed": { "type": "boolean" },
+        "subscriptionId": { "type": "string" },
+        "updatedAt": { "type": "object", "description": "Firestore Timestamp" }
+      },
+      "required": ["favoritesCount", "printCount", "isSubscribed"]
+    },
+    "Song": {
+      "title": "Song",
+      "description": "A saved song in a user's library",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "originalKey": { "type": "string" },
+        "suggestedTempo": { "type": "number" },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "lines": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "required": ["name", "lines"]
+          }
+        },
+        "savedAt": { "type": "object", "description": "Firestore Timestamp" },
+        "userId": { "type": "string" }
+      },
+      "required": ["title", "artist", "originalKey", "suggestedTempo", "sections", "userId", "savedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data and settings"
+    },
+    "users/{userId}/songs/{songId}": {
+      "schema": "Song",
+      "description": "User's personal song collection"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Chordstream",
+  "description": "A hands-free guitar songbook with auto-scrolling, key transposition, and precise chord placement above lyrics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Song Validation Helper
+    function isValidSong(data) {
+      return data.keys().hasAll(['title', 'artist', 'originalKey', 'suggestedTempo', 'sections', 'userId', 'savedAt']) &&
+             data.keys().size() == 7 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.artist is string && data.artist.size() <= 200 &&
+             data.originalKey is string && data.originalKey.size() <= 10 &&
+             data.suggestedTempo is number && data.suggestedTempo >= 0 && data.suggestedTempo <= 500 &&
+             data.userId == request.auth.uid &&
+             data.sections is list && data.sections.size() <= 50 &&
+             data.savedAt == request.time;
+    }
+
+    // User Profile Validation Helper
+    function isValidProfile(data) {
+      return data.keys().hasAll(['favoritesCount', 'printCount', 'isSubscribed', 'updatedAt']) &&
+             data.favoritesCount is number && data.favoritesCount >= 0 &&
+             data.printCount is number && data.printCount >= 0 &&
+             data.isSubscribed is bool;
+    }
+
+    // 1. User Root - Strict isolation of user data
+    match /users/{userId} {
+      allow get: if isVerified() && userId == request.auth.uid;
+      
+      // Allow creation of first profile
+      allow create: if isVerified() && userId == request.auth.uid && 
+                      isValidProfile(incoming()) && 
+                      incoming().isSubscribed == false; // Trial starts as false
+
+      // Allow updating usage counts but NOT subscription status
+      allow update: if isVerified() && userId == request.auth.uid &&
+                      isValidProfile(incoming()) &&
+                      // Prevent identity theft / subscription spoofing from client
+                      incoming().isSubscribed == existing().isSubscribed &&
+                      (
+                        // Action: Increment usage
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['favoritesCount', 'printCount', 'updatedAt'])
+                      );
+      
+      // Personal Song Collection
+      match /songs/{songId} {
+        allow get: if isVerified() && userId == request.auth.uid;
+        allow list: if isVerified() && userId == request.auth.uid;
+        
+        allow create: if isVerified() && 
+                        userId == request.auth.uid && 
+                        isValidId(songId) &&
+                        isValidSong(incoming());
+                        
+        allow update: if isVerified() && 
+                        userId == request.auth.uid && 
+                        isValidSong(incoming()) &&
+                        incoming().userId == existing().userId; // Immutable owner
+                        
+        allow delete: if isVerified() && userId == request.auth.uid;
+      }
+    }
+  }
+}
