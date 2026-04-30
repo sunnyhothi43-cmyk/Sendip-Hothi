@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Chordstream</string>
+    <string name="title_activity_main">Chordstream</string>
+    <string name="package_name">com.chordstream.app</string>
+    <string name="custom_url_scheme">com.chordstream.app</string>
+</resources>
