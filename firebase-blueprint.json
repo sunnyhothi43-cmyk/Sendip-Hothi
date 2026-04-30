@@ -8,6 +8,11 @@
         "favoritesCount": { "type": "number" },
         "printCount": { "type": "number" },
         "isSubscribed": { "type": "boolean" },
+        "subscriptionType": { "type": "string", "enum": ["monthly", "yearly", "lifetime"] },
+        "renewalDate": { "type": "object", "description": "Firestore Timestamp" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "country": { "type": "string" },
         "subscriptionId": { "type": "string" },
         "updatedAt": { "type": "object", "description": "Firestore Timestamp" }
       },

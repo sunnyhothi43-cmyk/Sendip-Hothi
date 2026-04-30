@@ -11,6 +11,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'sunny.hothi43@gmail.com';
+    }
+
     function isVerified() {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
@@ -31,12 +35,12 @@ service cloud.firestore {
     function isValidSong(data) {
       return data.keys().hasAll(['title', 'artist', 'originalKey', 'suggestedTempo', 'sections', 'userId', 'savedAt']) &&
              data.keys().size() == 7 &&
-             data.title is string && data.title.size() <= 200 &&
-             data.artist is string && data.artist.size() <= 200 &&
-             data.originalKey is string && data.originalKey.size() <= 10 &&
-             data.suggestedTempo is number && data.suggestedTempo >= 0 && data.suggestedTempo <= 500 &&
+             data.title is string && data.title.size() <= 300 &&
+             data.artist is string && data.artist.size() <= 300 &&
+             data.originalKey is string && data.originalKey.size() <= 20 &&
+             data.suggestedTempo is number && data.suggestedTempo >= 0 && data.suggestedTempo <= 1000 &&
              data.userId == request.auth.uid &&
-             data.sections is list && data.sections.size() <= 50 &&
+             data.sections is list && data.sections.size() <= 100 &&
              data.savedAt == request.time;
     }
 
@@ -45,44 +49,61 @@ service cloud.firestore {
       return data.keys().hasAll(['favoritesCount', 'printCount', 'isSubscribed', 'updatedAt']) &&
              data.favoritesCount is number && data.favoritesCount >= 0 &&
              data.printCount is number && data.printCount >= 0 &&
-             data.isSubscribed is bool;
+             data.isSubscribed is bool &&
+             data.updatedAt is timestamp &&
+             (!data.keys().hasAny(['subscriptionType']) || (data.subscriptionType is string || data.subscriptionType == null)) &&
+             (!data.keys().hasAny(['renewalDate']) || (data.renewalDate is timestamp || data.renewalDate == null)) &&
+             (!data.keys().hasAny(['displayName']) || (data.displayName is string && data.displayName.size() <= 200)) &&
+             (!data.keys().hasAny(['email']) || (data.email is string && data.email.size() <= 200)) &&
+             (!data.keys().hasAny(['country']) || (data.country is string && data.country.size() <= 100));
     }
 
     // 1. User Root - Strict isolation of user data
     match /users/{userId} {
-      allow get: if isVerified() && userId == request.auth.uid;
+      allow get: if isSignedIn() && userId == request.auth.uid;
       
       // Allow creation of first profile
-      allow create: if isVerified() && userId == request.auth.uid && 
+      allow create: if isSignedIn() && userId == request.auth.uid && 
                       isValidProfile(incoming()) && 
-                      incoming().isSubscribed == false; // Trial starts as false
+                      (incoming().isSubscribed == false || isAdmin()) &&
+                      incoming().updatedAt == request.time;
 
-      // Allow updating usage counts but NOT subscription status
-      allow update: if isVerified() && userId == request.auth.uid &&
+      // Allow updating usage counts and subscription status
+      allow update: if isSignedIn() && userId == request.auth.uid &&
                       isValidProfile(incoming()) &&
-                      // Prevent identity theft / subscription spoofing from client
-                      incoming().isSubscribed == existing().isSubscribed &&
+                      incoming().updatedAt == request.time &&
                       (
-                        // Action: Increment usage
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['favoritesCount', 'printCount', 'updatedAt'])
+                        isAdmin() ||
+                        // Action: Increment Print Count
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['printCount', 'updatedAt']) && 
+                         incoming().printCount == existing().printCount + 1) ||
+                        
+                        // Action: Increment Favorites Count
+                        (incoming().diff(existing()).affectedKeys().hasOnly(['favoritesCount', 'updatedAt']) && 
+                         incoming().favoritesCount == existing().favoritesCount + 1) ||
+                        
+                        // Action: Upgrade Subscription (Demo)
+                        (incoming().diff(existing()).affectedKeys().hasAny(['isSubscribed', 'subscriptionType', 'renewalDate', 'updatedAt']) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['isSubscribed', 'subscriptionType', 'renewalDate', 'updatedAt']) &&
+                         existing().isSubscribed == false && incoming().isSubscribed == true)
                       );
       
       // Personal Song Collection
       match /songs/{songId} {
-        allow get: if isVerified() && userId == request.auth.uid;
-        allow list: if isVerified() && userId == request.auth.uid;
+        allow get: if isSignedIn() && userId == request.auth.uid;
+        allow list: if isSignedIn() && userId == request.auth.uid;
         
-        allow create: if isVerified() && 
+        allow create: if isSignedIn() && 
                         userId == request.auth.uid && 
                         isValidId(songId) &&
                         isValidSong(incoming());
                         
-        allow update: if isVerified() && 
+        allow update: if isSignedIn() && 
                         userId == request.auth.uid && 
                         isValidSong(incoming()) &&
                         incoming().userId == existing().userId; // Immutable owner
                         
-        allow delete: if isVerified() && userId == request.auth.uid;
+        allow delete: if isSignedIn() && userId == request.auth.uid;
       }
     }
   }
