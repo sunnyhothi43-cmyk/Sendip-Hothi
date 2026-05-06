@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -16,7 +16,8 @@ export interface SongData {
 
 export async function fetchSongData(songQuery: string): Promise<SongData> {
   try {
-    const response = await ai.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent({
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
       contents: [{ role: "user", parts: [{ text: `Retrieve the COMPLETE guitar chords and lyrics for the song: "${songQuery}". 
       CRITICAL: Provide the ENTIRE song from start to finish. Include EVERY verse, chorus, bridge, and outro. 
       STRICT PROHIBITION: 
@@ -28,7 +29,7 @@ export async function fetchSongData(songQuery: string): Promise<SongData> {
       Place chords in brackets like [C] or [Am7] at the PRECISE column where the chord change occurs in the lyrics.
       NEW MANDATORY: Provide a recommended strumming pattern for this song (e.g., "D-D-U-U-D-U" or "4/4 Downstrokes only").
       Ensure the output is valid JSON according to the schema.` }] }],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -58,7 +59,7 @@ export async function fetchSongData(songQuery: string): Promise<SongData> {
       }
     });
 
-    const text = response.response.text();
+    const text = response.text || "";
     if (!text) throw new Error("No data received from Gemini");
     return JSON.parse(text);
   } catch (error: any) {
@@ -72,7 +73,8 @@ export async function fetchSongData(songQuery: string): Promise<SongData> {
 
 export async function searchSongs(query: string): Promise<{ title: string; artist: string }[]> {
   try {
-    const response = await ai.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent({
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
       contents: [{ role: "user", parts: [{ text: `The user searched for: "${query}". 
       Analyze this query and return a list of 8-12 relevant song matches.
       
@@ -84,7 +86,7 @@ export async function searchSongs(query: string): Promise<{ title: string; artis
       - Even if the query is vague, suggest popular guitar classics.
       
       Format the response as a JSON object with a "results" array. Each item must have "title" and "artist".` }] }],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -106,7 +108,7 @@ export async function searchSongs(query: string): Promise<{ title: string; artis
       }
     });
 
-    const text = response.response.text();
+    const text = response.text || "";
     if (!text) return [];
     const data = JSON.parse(text);
     return data.results || [];
@@ -118,10 +120,11 @@ export async function searchSongs(query: string): Promise<{ title: string; artis
 
 export async function fetchRecommendations(artists: string[]): Promise<{ title: string; artist: string }[]> {
   try {
-    const response = await ai.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent({
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
       contents: [{ role: "user", parts: [{ text: `Based on these favorite artists: ${artists.join(", ")}, suggest 25 similar songs that are popular but also generally easy to play on acoustic guitar (basic open chords).
       Return a list of song objects with 'title' and 'artist' keys.` }] }],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -143,7 +146,7 @@ export async function fetchRecommendations(artists: string[]): Promise<{ title: 
       }
     });
 
-    const text = response.response.text();
+    const text = response.text || "";
     if (!text) return [];
     const data = JSON.parse(text);
     return data.recommendations || [];
@@ -155,12 +158,13 @@ export async function fetchRecommendations(artists: string[]): Promise<{ title: 
 
 export async function fetchChordFingering(chord: string): Promise<{ frets: number[]; fingers: number[]; barres?: number[] } | null> {
   try {
-    const response = await ai.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent({
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
       contents: [{ role: "user", parts: [{ text: `Provide the guitar fingering for the chord "${chord}" in standard tuning.
       Prioritize an easy-to-play open position if possible.
       Return the data in this JSON format: { "frets": [E, A, D, G, B, e], "fingers": [E, A, D, G, B, e], "barres": [] }.
       Use -1 for muted strings and 0 for open strings. Fingers are 1-4.` }] }],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -174,7 +178,7 @@ export async function fetchChordFingering(chord: string): Promise<{ frets: numbe
       },
     });
 
-    const text = response.response.text();
+    const text = response.text || "";
     if (!text) return null;
     const data = JSON.parse(text);
     return data;
