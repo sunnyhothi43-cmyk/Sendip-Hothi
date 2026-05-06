@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/generatve-ai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -7,6 +7,7 @@ export interface SongData {
   artist: string;
   originalKey: string;
   suggestedTempo: number;
+  strummingPattern?: string;
   sections: {
     name: string;
     lines: string[];
@@ -26,6 +27,7 @@ export async function fetchSongData(songQuery: string): Promise<SongData> {
       If a chorus repeats 3 times, you MUST output the full chords and lyrics for all 3 occurrences.
       MANDATORY: Include chords for the Intro and any Instrumental sections (Solos/Outros). If no lyrics exist for a section, provide the chord progression in brackets (e.g., [G] [Em] [C] [D]).
       Place chords in brackets like [C] or [Am7] at the PRECISE column where the chord change occurs in the lyrics.
+      NEW MANDATORY: Provide a recommended strumming pattern for this song (e.g., "D-D-U-U-D-U" or "4/4 Downstrokes only").
       Ensure the output is valid JSON according to the schema.`,
       config: {
         responseMimeType: "application/json",
@@ -36,6 +38,7 @@ export async function fetchSongData(songQuery: string): Promise<SongData> {
             artist: { type: Type.STRING },
             originalKey: { type: Type.STRING },
             suggestedTempo: { type: Type.NUMBER },
+            strummingPattern: { type: Type.STRING },
             sections: {
               type: Type.ARRAY,
               items: {
