@@ -36,19 +36,19 @@ jobs:
           cp -r dist/* android/app/src/main/assets/public/
           npx cap sync android
 
-      - name: Clean Corrupted Gradle Wrapper
-        run: rm -f android/gradle/wrapper/gradle-wrapper.jar
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.12
-          validate-wrappers: false
 
       - name: Build Android App Bundle
         run: |
           cd android
-          gradle bundleRelease
+          # Proactively remove corrupted wrapper
+          rm -f gradle/wrapper/gradle-wrapper.jar
+          # Re-generate the wrapper to ensure it is valid and matching the desired version
+          gradle wrapper --gradle-version 8.12
+          ./gradlew bundleRelease
 
       - name: Sign AAB
         id: sign_app
