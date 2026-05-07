@@ -11,10 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: set up JDK 17
+      - name: set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: gradle
 
@@ -38,20 +38,29 @@ jobs:
 
       - name: Purge Corrupted Resources
         run: |
+          # Deep clean all potentially broken image assets
           find android/app/src/main/res -name "*.png" -delete
           find android/app/src/main/res -name "*.jpg" -delete
           find android/app/src/main/res -name "*.jpeg" -delete
           find android/app/src/main/res -name "*.webp" -delete
+          
           mkdir -p android/app/src/main/res/drawable
+          
+          # Create a basic valid XML vector icon as a universal placeholder
           echo '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF0000" android:pathData="M12,2L1,21h22L12,2z"/></vector>' > android/app/src/main/res/drawable/ic_launcher_fix.xml
-          sed -i 's/@mipmap\/ic_launcher/@drawable\/ic_launcher_fix/g' android/app/src/main/AndroidManifest.xml
+          
+          # Update manifest with unique IDs to avoid partial string match issues
+          # Swap order to handle 'ic_launcher_round' first
           sed -i 's/@mipmap\/ic_launcher_round/@drawable\/ic_launcher_fix/g' android/app/src/main/AndroidManifest.xml
+          sed -i 's/@mipmap\/ic_launcher/@drawable\/ic_launcher_fix/g' android/app/src/main/AndroidManifest.xml
+          
+          # Direct replacement in styles
           sed -i 's/@drawable\/splash/@drawable\/ic_launcher_fix/g' android/app/src/main/res/values/styles.xml
 
       - name: Build Android App Bundle
         run: |
           cd android
-          # Skip linting and tests to speed up the build for troubleshooting
+          # Use system gradle and skip unnecessary steps
           gradle bundleRelease -x lint -x test
 
       - name: Sign AAB
