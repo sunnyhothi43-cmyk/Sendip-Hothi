@@ -36,31 +36,27 @@ jobs:
           cp -r dist/* android/app/src/main/assets/public/
           npx cap sync android
 
-      - name: Purge Corrupted Resources
+      - name: Force Fix Resources
         run: |
-          # Deep clean all potentially broken image assets
-          find android/app/src/main/res -name "*.png" -delete
-          find android/app/src/main/res -name "*.jpg" -delete
-          find android/app/src/main/res -name "*.jpeg" -delete
-          find android/app/src/main/res -name "*.webp" -delete
+          # Completely remove all mipmap folders to stop adaptive icon compilation
+          rm -rf android/app/src/main/res/mipmap-*
           
+          # Ensure drawable directory exists
           mkdir -p android/app/src/main/res/drawable
           
-          # Create a basic valid XML vector icon as a universal placeholder
+          # Create a basic valid XML vector icon
           echo '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF0000" android:pathData="M12,2L1,21h22L12,2z"/></vector>' > android/app/src/main/res/drawable/ic_launcher_fix.xml
           
-          # Update manifest with unique IDs to avoid partial string match issues
-          # Swap order to handle 'ic_launcher_round' first
-          sed -i 's/@mipmap\/ic_launcher_round/@drawable\/ic_launcher_fix/g' android/app/src/main/AndroidManifest.xml
-          sed -i 's/@mipmap\/ic_launcher/@drawable\/ic_launcher_fix/g' android/app/src/main/AndroidManifest.xml
+          # Point everything to the new valid XML icon in the Manifest
+          sed -i 's/android:icon="[^"]*"/android:icon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:roundIcon="[^"]*"/android:roundIcon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
           
-          # Direct replacement in styles
+          # Point splash screen to the same valid XML icon in Styles
           sed -i 's/@drawable\/splash/@drawable\/ic_launcher_fix/g' android/app/src/main/res/values/styles.xml
 
       - name: Build Android App Bundle
         run: |
           cd android
-          # Use system gradle and skip unnecessary steps
           gradle bundleRelease -x lint -x test
 
       - name: Sign AAB
