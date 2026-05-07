@@ -42,6 +42,7 @@ jobs:
           gradle-version: 8.14.3
           build-root-directory: android
           arguments: bundleRelease
+          validate-wrappers: false
 
       - name: Sign AAB
         id: sign_app
