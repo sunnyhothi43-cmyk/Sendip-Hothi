@@ -44,9 +44,7 @@ jobs:
       - name: Build Android App Bundle
         run: |
           cd android
-          # Proactively remove corrupted wrapper
-          rm -f gradle/wrapper/gradle-wrapper.jar
-          # Re-generate the wrapper to ensure it is valid and matching the desired version
+          # Re-generate a fresh wrapper since we deleted the corrupted one
           gradle wrapper --gradle-version 8.12
           ./gradlew bundleRelease
 
