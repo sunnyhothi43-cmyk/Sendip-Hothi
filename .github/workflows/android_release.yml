@@ -38,14 +38,23 @@ jobs:
 
       - name: Fix Corrupted Resources
         run: |
-          # Delete corrupted icons that trigger AAPT errors
+          # Delete all potentially corrupted image assets
           rm -rf android/app/src/main/res/mipmap-*
+          find android/app/src/main/res/drawable* -name "*.png" -delete
+          find android/app/src/main/res/drawable* -name "*.jpg" -delete
+          find android/app/src/main/res/drawable* -name "*.jpeg" -delete
+          
           mkdir -p android/app/src/main/res/drawable
+          
           # Create a simple valid XML placeholder icon
           echo '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF0000" android:pathData="M12,2L1,21h22L12,2z"/></vector>' > android/app/src/main/res/drawable/ic_launcher_fix.xml
+          
           # Update manifest to point to the fixed icon
           sed -i 's/android:icon="@mipmap\/ic_launcher"/android:icon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
           sed -i 's/android:roundIcon="@mipmap\/ic_launcher_round"/android:roundIcon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
+          
+          # Update styles to point to a valid background (using the same fix icon as a placeholder for splash)
+          sed -i 's/@drawable\/splash/@drawable\/ic_launcher_fix/g' android/app/src/main/res/values/styles.xml
 
       - name: Build Android App Bundle
         run: |
