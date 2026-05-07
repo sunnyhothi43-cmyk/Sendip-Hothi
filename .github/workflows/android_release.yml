@@ -30,11 +30,10 @@ jobs:
       - name: Build Web App
         run: npm run build
 
-      - name: Verify Build Output
-        run: ls -la dist
-
       - name: Capacitor Sync
-        run: npx cap sync android
+        run: |
+          mkdir -p android/app/src/main/assets/public
+          npx cap sync android
 
       - name: Build Android App Bundle
         run: |
