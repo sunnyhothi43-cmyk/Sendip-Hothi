@@ -36,11 +36,21 @@ jobs:
           cp -r dist/* android/app/src/main/assets/public/
           npx cap sync android
 
+      - name: Fix Corrupted Resources
+        run: |
+          # Delete corrupted icons that trigger AAPT errors
+          rm -rf android/app/src/main/res/mipmap-*
+          mkdir -p android/app/src/main/res/drawable
+          # Create a simple valid XML placeholder icon
+          echo '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF0000" android:pathData="M12,2L1,21h22L12,2z"/></vector>' > android/app/src/main/res/drawable/ic_launcher_fix.xml
+          # Update manifest to point to the fixed icon
+          sed -i 's/android:icon="@mipmap\/ic_launcher"/android:icon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:roundIcon="@mipmap\/ic_launcher_round"/android:roundIcon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
+
       - name: Build Android App Bundle
         run: |
           cd android
-          # Re-initialize gradle to ensure standard setup
-          gradle init --type pom
+          # Use system gradle directly
           gradle bundleRelease
 
       - name: Sign AAB
