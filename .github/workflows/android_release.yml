@@ -36,36 +36,33 @@ jobs:
           cp -r dist/* android/app/src/main/assets/public/
           npx cap sync android
 
-      - name: Extreme Resource Purge and Fix
+      - name: Setup Android Resources
         run: |
-          # Completely wipe all existing mipmap and drawable folders
           rm -rf android/app/src/main/res/mipmap-*
           rm -rf android/app/src/main/res/drawable-*
           mkdir -p android/app/src/main/res/drawable
           
-          # Create a basic valid XML vector icon that requires NO external layers
-          echo '<?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-            <path android:fillColor="#FF0000" android:pathData="M12,2L1,21h22L12,2z"/>
-          </vector>' > android/app/src/main/res/drawable/ic_launcher_fix.xml
-          
-          # Clean the Manifest: Remove ALL existing icon/roundIcon attributes and inject fresh ones
-          # This prevents multiple overlapping icon declarations
-          sed -i 's/android:icon="[^"]*"//g' android/app/src/main/AndroidManifest.xml
-          sed -i 's/android:roundIcon="[^"]*"//g' android/app/src/main/AndroidManifest.xml
-          # Inject fresh ones into the <application tag
-          sed -i 's/<application/<application android:icon="@drawable\/ic_launcher_fix" android:roundIcon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
-          
-          # Clean Styles
-          sed -i 's/@drawable\/splash/@drawable\/ic_launcher_fix/g' android/app/src/main/res/values/styles.xml
-          
-          # Recursive cleanup: Strip any remaining mipmap references from any XML file
-          find android/app/src/main/res -name "*.xml" -exec sed -i 's/@mipmap\/[^ "]*/@drawable\/ic_launcher_fix/g' {} +
+          cat > android/app/src/main/res/drawable/ic_launcher_foreground.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+            <path
+                android:fillColor="#FF6B6B"
+                android:pathData="M54,9C30.91,9 12,27.91 12,51C12,74.09 30.91,93 54,93C77.09,93 96,74.09 96,51C96,27.91 77.09,9 54,9ZM54,84C35.7,84 21,69.3 21,51C21,32.7 35.7,18 54,18C72.3,18 87,32.7 87,51C87,69.3 72.3,84 54,84Z"/>
+            <path
+                android:fillColor="#FFD93D"
+                android:pathData="M54,36C43.5,36 35,44.5 35,55C35,65.5 43.5,74 54,74C64.5,74 73,65.5 73,55C73,44.5 64.5,36 54,36Z"/>
+          </vector>
+          EOF
 
       - name: Build Android App Bundle
         run: |
           cd android
-          gradle bundleRelease -x lint -x test
+          chmod +x gradlew
+          ./gradlew bundleRelease -x lint -x test
 
       - name: Sign AAB
         id: sign_app
