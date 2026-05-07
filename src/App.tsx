@@ -116,7 +116,7 @@ export default function App() {
     if (!stripeStatus) return false;
     const priceIds = stripeStatus.priceIds || {};
     const invalidFormat = Object.values(priceIds).some((val: any) => 
-      val?.startsWith('http') || val?.startsWith('prod_')
+      val?.startsWith('http') || val?.startsWith('buy.stripe.com') || val?.startsWith('prod_')
     );
     return stripeStatus.isTruncated || stripeStatus.secretKeyPrefix === 'Nil' || !stripeStatus.isSkPrefix || invalidFormat;
   }, [stripeStatus]);
@@ -1143,7 +1143,7 @@ export default function App() {
                   title={user.email || 'Logout'}
                 >
                   {user.photoURL ? (
-                    <img referrerpolicy="no-referrer" src={user.photoURL} className="w-6 h-6 rounded-full border border-neutral-800 group-hover:border-amber-500 transition-colors" alt="" />
+                    <img referrerPolicy="no-referrer" src={user.photoURL} className="w-6 h-6 rounded-full border border-neutral-800 group-hover:border-amber-500 transition-colors" alt="" />
                   ) : (
                     <div className="w-7 h-7 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center group-hover:border-amber-500 transition-colors">
                       <span className="text-[10px] font-black text-amber-500">
@@ -1578,7 +1578,8 @@ export default function App() {
       </AnimatePresence>
 
       {/* Settings Panel Overlay */}
-      {isSettingsOpen && (
+      <AnimatePresence>
+        {isSettingsOpen && (
           <>
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -1832,6 +1833,7 @@ export default function App() {
             </motion.div>
           </>
         )}
+      </AnimatePresence>
 
       {/* Paywall Overlay */}
       <AnimatePresence>
@@ -2063,7 +2065,7 @@ export default function App() {
   );
 }
 
-function LineRenderer({ line, fontSize, isIntro, onChordClick }: { line: string, fontSize: number, isIntro: boolean, onChordClick: (c: string) => void }) {
+function LineRenderer({ line, fontSize, isIntro, onChordClick }: { line: string, fontSize: number, isIntro: boolean, onChordClick: (c: string) => any }) {
   const segments = useMemo(() => parseChordSegments(line), [line]);
   
   // Detect if this is an instrumental line (lots of chords, little/no text)
