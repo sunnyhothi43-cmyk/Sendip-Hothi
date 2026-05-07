@@ -30,12 +30,16 @@ jobs:
       - name: Build Web App
         run: npm run build
 
+      - name: Verify Build Output
+        run: ls -la dist
+
       - name: Capacitor Sync
         run: npx cap sync android
 
       - name: Build Android App Bundle
         run: |
           cd android
+          chmod +x gradlew
           ./gradlew bundleRelease
 
       - name: Sign AAB
