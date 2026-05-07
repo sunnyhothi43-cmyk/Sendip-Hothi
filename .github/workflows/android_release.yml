@@ -36,24 +36,31 @@ jobs:
           cp -r dist/* android/app/src/main/assets/public/
           npx cap sync android
 
-      - name: Fix Assets and Resource References
+      - name: Extreme Resource Purge and Fix
         run: |
-          # Fully purge existing resources and create valid placeholders
+          # Completely wipe all existing mipmap and drawable folders
           rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable-*
           mkdir -p android/app/src/main/res/drawable
           
-          # Universal Placeholder Icon
-          echo '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FF0000" android:pathData="M12,2L1,21h22L12,2z"/></vector>' > android/app/src/main/res/drawable/ic_launcher_fix.xml
+          # Create a basic valid XML vector icon that requires NO external layers
+          echo '<?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+            <path android:fillColor="#FF0000" android:pathData="M12,2L1,21h22L12,2z"/>
+          </vector>' > android/app/src/main/res/drawable/ic_launcher_fix.xml
           
-          # Manifest Cleanup: Remove specific mipmap requirements
-          sed -i 's/android:icon="[^"]*"/android:icon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
-          sed -i 's/android:roundIcon="[^"]*"/android:roundIcon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
+          # Clean the Manifest: Remove ALL existing icon/roundIcon attributes and inject fresh ones
+          # This prevents multiple overlapping icon declarations
+          sed -i 's/android:icon="[^"]*"//g' android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:roundIcon="[^"]*"//g' android/app/src/main/AndroidManifest.xml
+          # Inject fresh ones into the <application tag
+          sed -i 's/<application/<application android:icon="@drawable\/ic_launcher_fix" android:roundIcon="@drawable\/ic_launcher_fix"/g' android/app/src/main/AndroidManifest.xml
           
-          # Styles Cleanup
+          # Clean Styles
           sed -i 's/@drawable\/splash/@drawable\/ic_launcher_fix/g' android/app/src/main/res/values/styles.xml
           
-          # Proactive: Remove any XML resource that still tries to use the old mipmaps
-          find android/app/src/main/res -name "*.xml" -exec sed -i 's/@mipmap\/ic_launcher/@drawable\/ic_launcher_fix/g' {} +
+          # Recursive cleanup: Strip any remaining mipmap references from any XML file
+          find android/app/src/main/res -name "*.xml" -exec sed -i 's/@mipmap\/[^ "]*/@drawable\/ic_launcher_fix/g' {} +
 
       - name: Build Android App Bundle
         run: |
