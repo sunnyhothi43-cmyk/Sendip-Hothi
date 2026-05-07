@@ -39,8 +39,7 @@ jobs:
       - name: Build Android App Bundle
         run: |
           cd android
-          # Directly install gradle since wrapper is missing/corrupted
-          sudo apt-get update && sudo apt-get install -y gradle
+          # Use standard gradle installation provided by ubuntu image
           gradle bundleRelease
 
       - name: Sign AAB
