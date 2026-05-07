@@ -39,7 +39,8 @@ jobs:
       - name: Build Android App Bundle
         run: |
           cd android
-          # Use standard gradle installation provided by ubuntu image
+          # Re-initialize gradle to ensure standard setup
+          gradle init --type pom
           gradle bundleRelease
 
       - name: Sign AAB
