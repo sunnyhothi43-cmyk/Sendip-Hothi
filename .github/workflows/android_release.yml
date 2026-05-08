@@ -36,11 +36,8 @@ jobs:
           cp -r dist/* android/app/src/main/assets/public/
           npx cap sync android
 
-      - name: Repair and Clean Android Project
+      - name: Setup Android Resources
         run: |
-          # Force remove the corrupted gradle wrapper jar Physically uploaded to repo
-          rm -f android/gradle/wrapper/gradle-wrapper.jar
-          
           # Fully purge existing mipmap resources to prevent compilation failures
           rm -rf android/app/src/main/res/mipmap-*
           mkdir -p android/app/src/main/res/drawable
@@ -62,11 +59,11 @@ jobs:
           sed -i 's/@drawable\/splash/@drawable\/ic_launcher_universal/g' android/app/src/main/res/values/styles.xml
 
       - name: Build Android App Bundle
-        run: |
-          cd android
-          # Use system-installed gradle instead of the corrupted wrapper script
-          sudo apt-get update && sudo apt-get install -y gradle
-          gradle bundleRelease -x lint -x test
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.12
+          build-root-directory: android
+          arguments: bundleRelease -x lint -x test
 
       - name: Sign AAB
         id: sign_app
