@@ -58,12 +58,16 @@ jobs:
           # Clean Styles: Replace splash reference with our universal icon
           sed -i 's/@drawable\/splash/@drawable\/ic_launcher_universal/g' android/app/src/main/res/values/styles.xml
 
-      - name: Build Android App Bundle
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.12
-          build-root-directory: android
-          arguments: bundleRelease -x lint -x test
+
+      - name: Build Android App Bundle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease -x lint -x test
 
       - name: Sign AAB
         id: sign_app
