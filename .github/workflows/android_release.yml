@@ -38,7 +38,7 @@ jobs:
 
       - name: Repair and Clean Android Project
         run: |
-          # Proactively remove the corrupted gradle wrapper jar physically uploaded to repo
+          # Force remove the corrupted gradle wrapper jar Physically uploaded to repo
           rm -f android/gradle/wrapper/gradle-wrapper.jar
           
           # Fully purge existing mipmap resources to prevent compilation failures
@@ -46,7 +46,6 @@ jobs:
           mkdir -p android/app/src/main/res/drawable
           
           # Create a basic valid XML vector icon as a universal placeholder
-          # Using a proper name that matches what we'll inject into the manifest
           cat > android/app/src/main/res/drawable/ic_launcher_universal.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
