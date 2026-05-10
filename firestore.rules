@@ -33,12 +33,13 @@ service cloud.firestore {
 
     // Song Validation Helper
     function isValidSong(data) {
-      return data.keys().hasAll(['title', 'artist', 'originalKey', 'suggestedTempo', 'sections', 'userId', 'savedAt']) &&
-             data.keys().size() == 7 &&
+      return data.keys().hasAll(['title', 'artist', 'originalKey', 'suggestedTempo', 'sections', 'userId', 'savedAt', 'strummingPattern']) &&
+             data.keys().size() == 8 &&
              data.title is string && data.title.size() <= 300 &&
              data.artist is string && data.artist.size() <= 300 &&
              data.originalKey is string && data.originalKey.size() <= 20 &&
              data.suggestedTempo is number && data.suggestedTempo >= 0 && data.suggestedTempo <= 1000 &&
+             data.strummingPattern is string && data.strummingPattern.size() <= 100 &&
              data.userId == request.auth.uid &&
              data.sections is list && data.sections.size() <= 100 &&
              data.savedAt == request.time;

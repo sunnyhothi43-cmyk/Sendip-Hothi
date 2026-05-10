@@ -33,9 +33,10 @@ COPY --from=builder /app/server.ts ./server.ts
 
 # Set backend to production mode
 ENV NODE_ENV=production
+ENV PORT=8080
 
 # Expose the application port
-EXPOSE 3000
+EXPOSE 8080
 
 # Start the application
 CMD ["node", "--experimental-strip-types", "server.ts"]

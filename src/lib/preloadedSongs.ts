@@ -6,6 +6,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "Beck",
     originalKey: "D",
     suggestedTempo: 85,
+    strummingPattern: "D-D-D-DD",
     sections: [
       {
         name: "Verse 1",
@@ -94,6 +95,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "Oasis",
     originalKey: "A",
     suggestedTempo: 75,
+    strummingPattern: "D-D-DU-DU",
     sections: [
       {
         name: "Verse 1",
@@ -156,6 +158,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "Oasis",
     originalKey: "F#m",
     suggestedTempo: 87,
+    strummingPattern: "D-D-DU-DU",
     sections: [
       {
         name: "Verse 1",
@@ -220,6 +223,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "Pink Floyd",
     originalKey: "G",
     suggestedTempo: 60,
+    strummingPattern: "D-D-DU-DU",
     sections: [
       {
         name: "Intro",
@@ -264,6 +268,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "The Beatles",
     originalKey: "C",
     suggestedTempo: 72,
+    strummingPattern: "D-DU-U-DU",
     sections: [
       {
         name: "Verse 1",
@@ -322,6 +327,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "The Beatles",
     originalKey: "F",
     suggestedTempo: 96,
+    strummingPattern: "D-D-DU-DU",
     sections: [
       {
         name: "Verse 1",
@@ -367,6 +373,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "The Eagles",
     originalKey: "Bm",
     suggestedTempo: 74,
+    strummingPattern: "D-D-DU-DU",
     sections: [
       {
         name: "Intro",
@@ -462,6 +469,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "Guns N' Roses",
     originalKey: "Db",
     suggestedTempo: 125,
+    strummingPattern: "D-DU-U-DU",
     sections: [
       {
         name: "Intro",
@@ -521,6 +529,7 @@ export const PRELOADED_SONGS: SongData[] = [
     artist: "Nirvana",
     originalKey: "Fm",
     suggestedTempo: 117,
+    strummingPattern: "D-D-DU-DU",
     sections: [
       {
         name: "Intro",

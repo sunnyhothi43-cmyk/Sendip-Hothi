@@ -137,7 +137,7 @@
     overflow: visible !important;
   }
   
-  nav, footer, .z-50, .fixed, button, input, .control-sidebar, .chord-guide-print-hide, [id*="button"], [id*="btn"], .sidebar-container, .bg-amber-500\/5 {
+  nav, footer, .z-50, .fixed, button, input, .control-sidebar, .chord-guide-print-hide, [id*="button"], [id*="btn"], .sidebar-container {
     display: none !important;
   }
   

@@ -28,14 +28,15 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({ position, size = 120
 
   return (
     <div className="flex flex-col items-center">
-      {label && <div className="text-[10px] font-bold mb-1 uppercase tracking-wider text-neutral-400">{label}</div>}
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="bg-neutral-900/50 rounded-lg p-2 border border-neutral-800">
+      {label && <div className="text-[10px] font-bold mb-1 uppercase tracking-wider text-neutral-400 print:text-black print:text-[8pt]">{label}</div>}
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="bg-neutral-900/50 rounded-lg p-1 border border-neutral-800 print:bg-white print:border-black print:border-[0.5px]">
         {/* Nut (if baseFret is 1) */}
         {baseFret === 1 && (
           <line 
             x1={margin} y1={margin} 
             x2={size - margin} y2={margin} 
-            stroke="white" strokeWidth="3" 
+            stroke="currentColor" strokeWidth="3" 
+            className="text-white print:text-black"
           />
         )}
         
@@ -43,7 +44,8 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({ position, size = 120
         {baseFret > 1 && (
           <text 
             x={margin - 10} y={margin + fretSpacing * 0.5 + 4} 
-            fontSize="10" fill="#888" textAnchor="middle"
+            fontSize="10" fill="currentColor" textAnchor="middle"
+            className="text-neutral-500 print:text-black"
           >
             {baseFret}
           </text>
@@ -55,7 +57,8 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({ position, size = 120
             key={`fret-${i}`}
             x1={margin} y1={margin + i * fretSpacing} 
             x2={size - margin} y2={margin + i * fretSpacing} 
-            stroke="#333" strokeWidth="1" 
+            stroke="currentColor" strokeWidth="1" 
+            className="text-neutral-800 print:text-neutral-300"
           />
         ))}
 
@@ -65,7 +68,8 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({ position, size = 120
             key={`string-${i}`}
             x1={margin + i * stringSpacing} y1={margin} 
             x2={margin + i * stringSpacing} y2={size - margin} 
-            stroke="#444" strokeWidth={1 + i * 0.2} 
+            stroke="currentColor" strokeWidth={1 + i * 0.2} 
+            className="text-neutral-700 print:text-neutral-400"
           />
         ))}
 
@@ -95,7 +99,8 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({ position, size = 120
               width={(last - first) * stringSpacing + dotRadius * 2}
               height={dotRadius * 2}
               rx={dotRadius}
-              fill="#555"
+              fill="currentColor"
+              className="text-neutral-600 print:text-neutral-500"
             />
           );
         })}
@@ -105,7 +110,7 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({ position, size = 120
           const x = margin + i * stringSpacing;
           if (fret === -1) {
             return (
-              <g key={`muted-${i}`} stroke="#888" strokeWidth="1.5">
+              <g key={`muted-${i}`} stroke="currentColor" strokeWidth="1.5" className="text-neutral-500 print:text-black">
                 <line x1={x - 3} y1={margin - 8} x2={x + 3} y2={margin - 2} />
                 <line x1={x + 3} y1={margin - 8} x2={x - 3} y2={margin - 2} />
               </g>
@@ -116,7 +121,8 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({ position, size = 120
               <circle 
                 key={`open-${i}`}
                 cx={x} cy={margin - 5} r="3" 
-                fill="none" stroke="#888" strokeWidth="1" 
+                fill="none" stroke="currentColor" strokeWidth="1" 
+                className="text-neutral-500 print:text-black"
               />
             );
           }
@@ -135,9 +141,9 @@ export const ChordDiagram: React.FC<ChordDiagramProps> = ({ position, size = 120
           
           return (
             <g key={`finger-${i}`}>
-              <circle cx={x} cy={y} r={dotRadius} fill="white" />
+              <circle cx={x} cy={y} r={dotRadius} fill="currentColor" className="text-white print:text-black" />
               {fingers[i] > 0 && (
-                <text x={x} y={y + 3} fontSize="8" fill="black" textAnchor="middle" fontWeight="bold">
+                <text x={x} y={y + 3} fontSize="8" fill="currentColor" textAnchor="middle" fontWeight="bold" className="text-black print:text-white">
                   {fingers[i]}
                 </text>
               )}

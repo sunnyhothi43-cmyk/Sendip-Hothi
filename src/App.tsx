@@ -48,9 +48,10 @@ export default function App() {
   const [scrollSpeed, setScrollSpeed] = useState(20);
   const [isScrolling, setIsScrolling] = useState(false);
   const [fontSize, setFontSize] = useState(15); 
+  const [showStrummingPattern, setShowStrummingPattern] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const [isEasyMode, setIsEasyMode] = useState(false);
-  const [isStrummingEnabled, setIsStrummingEnabled] = useState(true);
   const [selectedChord, setSelectedChord] = useState<{ name: string; positions: ChordPosition[]; currentIndex: number } | null>(null);
   const [loadingChord, setLoadingChord] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -75,7 +76,7 @@ export default function App() {
       return;
     }
 
-    const unsub = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
+    const unsubs = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
       const isAdmin = user.email === 'sunny.hothi43@gmail.com';
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -101,7 +102,7 @@ export default function App() {
       }
     }, (err) => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`));
 
-    return () => unsub();
+    return () => unsubs();
   }, [user]);
 
   // Fetch stripe config status once
@@ -116,13 +117,13 @@ export default function App() {
     if (!stripeStatus) return false;
     const priceIds = stripeStatus.priceIds || {};
     const invalidFormat = Object.values(priceIds).some((val: any) => 
-      val?.startsWith('http') || val?.startsWith('buy.stripe.com') || val?.startsWith('prod_')
+      val?.startsWith('http') || val?.startsWith('prod_')
     );
     return stripeStatus.isTruncated || stripeStatus.secretKeyPrefix === 'Nil' || !stripeStatus.isSkPrefix || invalidFormat;
   }, [stripeStatus]);
 
   const handleCreateCheckoutSession = async (priceId: string | undefined) => {
-    console.log("Initiating checkout with Price ID:", priceId);
+    console.log("Initiating checkout with PriceID:", priceId);
     if (!user) {
       setError("Please sign in to subscribe");
       return;
@@ -379,25 +380,21 @@ export default function App() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isRefreshingRecs, setIsRefreshingRecs] = useState(false);
 
-  const handlePrintAction = async () => {
+  const handlePrintAction = () => {
     if (!checkLimit('print')) return;
 
-    // Print must be triggered directly in the user event handler for many browsers.
-    // We focus first to ensure the iframe is active.
-    window.focus();
-    try {
-      window.print();
-      
-      // Update print count in Firestore
-      if (user) {
-        await updateDoc(doc(db, 'users', user.uid), {
-          printCount: increment(1),
-          updatedAt: serverTimestamp()
-        });
-      }
-    } catch (e) {
-      console.error("System print failed:", e);
+    // Update print count in background - don't await so print starts immediately
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), {
+        printCount: increment(1),
+        updatedAt: serverTimestamp()
+      }).catch(err => console.error("Firestore update failed:", err));
     }
+
+    // Directly trigger print
+    window.focus();
+    window.print();
+    
     // Close modal after initiating the browser's print dialog
     setIsPrintModalOpen(false);
   };
@@ -423,6 +420,28 @@ export default function App() {
   const handlePrint = useCallback(() => {
     setIsPrintModalOpen(true);
   }, []);
+
+  // Global Keyboard Shortcut for Printing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl+P or Cmd+P
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        if (song) {
+          e.preventDefault();
+          handlePrint();
+        }
+      }
+    };
+    const handleAfterPrint = () => {
+      setIsPrintModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [song, handlePrint]);
 
   const handleSearch = async (e?: React.FormEvent, customQuery?: string) => {
     e?.preventDefault();
@@ -572,7 +591,7 @@ export default function App() {
     try {
       const recs = await fetchRecommendations(artists);
       // Ensure we have unique suggestions that aren't already in library
-      const sorted = [...recs].sort((a, b) => {
+    const sorted = [...recs].sort((a, b) => {
         const artistComp = a.artist.localeCompare(b.artist);
         if (artistComp !== 0) return artistComp;
         return a.title.localeCompare(b.title);
@@ -623,8 +642,8 @@ export default function App() {
         artist: data.artist,
         originalKey: data.originalKey || "C",
         suggestedTempo: data.suggestedTempo || 120,
-        sections: data.sections || [],
         strummingPattern: data.strummingPattern || "",
+        sections: data.sections || [],
       };
 
       if (user) {
@@ -855,10 +874,10 @@ export default function App() {
               >
                 <div className="text-[10px] text-neutral-600 mb-4 uppercase tracking-[0.2em]">Redirect blocked?</div>
                 <button 
-                   onClick={() => window.open(checkoutUrl, '_blank')}
+                  onClick={() => window.open(checkoutUrl, '_blank')}
                   className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white text-[10px] font-black uppercase tracking-widest transition-all"
                 >
-                   Click here to pay manually
+                  Click here to pay manually
                 </button>
               </motion.div>
             )}
@@ -1041,14 +1060,21 @@ export default function App() {
             </div>
             <h3 className="text-lg font-bold text-white text-center mb-2">Print Song Sheet</h3>
             <p className="text-neutral-400 text-sm text-center mb-6 leading-relaxed">
-              We've optimized the layout for A4 Paper. Use the browser's print dialog to save as PDF or print to your device.
+              We've optimized the layout for A4 Paper. Click below to open the print menu, then set the <b>Destination</b> to <b>"Save as PDF"</b>.
             </p>
+            <div className="bg-amber-500/5 rounded-lg p-3 mb-6 border border-amber-500/10">
+              <p className="text-[10px] text-amber-500/75 uppercase font-black tracking-widest mb-1 text-center">Expert Tip</p>
+              <p className="text-[11px] text-neutral-300 text-center italic">
+                If the menu doesn't appear, try pressing <kbd className="bg-neutral-800 px-1 rounded text-white border border-white/10 not-italic">Ctrl + P</kbd> on your keyboard.
+              </p>
+            </div>
             <div className="flex flex-col gap-3">
               <button 
                 onClick={handlePrintAction}
-                className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest text-xs rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-amber-500/20"
+                className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest text-xs rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
               >
-                Open System Print
+                <Printer className="w-4 h-4" />
+                Open Print (Save as PDF)
               </button>
               <button 
                 onClick={() => setIsPrintModalOpen(false)}
@@ -1068,11 +1094,22 @@ export default function App() {
             onClick={goHome}
             className="flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-900 border border-neutral-800 rounded-lg font-black text-white uppercase tracking-widest text-[9px] hover:bg-neutral-800 transition-all shadow-sm group active:scale-95"
           >
-            <Home className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" / >
+            <Home className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
             <span className="hidden sm:block">Home</span>
           </button>
           
           <div className="flex-1" />
+
+          {song && (
+            <button 
+              onClick={handlePrint}
+              className="p-1.5 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-neutral-400 hover:text-amber-500 hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1.5 px-3 shadow-sm group"
+              title="Print Song Sheet to PDF"
+            >
+              <Printer className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+              <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">Print PDF</span>
+            </button>
+          )}
 
           <div className="flex items-center gap-2">
             <button 
@@ -1120,8 +1157,8 @@ export default function App() {
                 </button>
                 <div className="w-px h-6 bg-neutral-800/80 mx-1" />
                 <button 
-                   onClick={() => { setLoginMode('signin'); setIsLoginModalOpen(true); }}
-                   className="flex items-center gap-2.5 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-lg font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-amber-500/30 active:scale-95 group"
+                  onClick={() => { setLoginMode('signin'); setIsLoginModalOpen(true); }}
+                  className="flex items-center gap-2.5 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-lg font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-amber-500/30 active:scale-95 group"
                 >
                   <LogIn className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                   <span>Login / Join</span>
@@ -1167,7 +1204,7 @@ export default function App() {
       )}>
         {loading && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-8 h-8 border-2 border-amber-500/10 border-t-amber-500 rounded-full animate-spin" / >
+            <div className="w-8 h-8 border-2 border-amber-500/10 border-t-amber-500 rounded-full animate-spin" />
             <p className="text-[10px] uppercase tracking-[3px] text-neutral-600">Retrieving from AI Library</p>
           </div>
         )}
@@ -1186,28 +1223,28 @@ export default function App() {
 
               <form onSubmit={handleSearch} className="max-w-md mx-auto relative group">
                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                  <Search className="w-4 h-4 text-neutral-600 group-focus-within:text-amber-500 transition-colors" / >
+                  <Search className="w-4 h-4 text-neutral-600 group-focus-within:text-amber-500 transition-colors" />
                 </div>
                 <input
-                   type="text"
+                  type="text"
                   placeholder="Search Songs or Artists..."
-                    value={query}
+                  value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   className="w-full bg-neutral-900/50 hover:bg-neutral-900 border-2 border-neutral-800 rounded-xl py-2 pl-11 pr-24 focus:outline-none focus:border-amber-500 focus:bg-neutral-900 transition-all placeholder:text-neutral-500 text-sm text-white shadow-lg"
-                / >
+                />
                 <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
                   {query && (
                     <button 
-                       type="button"
-                       onClick={() => setQuery('')}
-                       className="p-1 text-neutral-500 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
+                      type="button"
+                      onClick={() => setQuery('')}
+                      className="p-1 text-neutral-500 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
                     >
-                      <X className="w-3.5 h-3.5" / >
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                   <button 
-                     disabled={loading}
-                     type="submit"
+                    disabled={loading}
+                    type="submit"
                     className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-black text-[9px] font-black uppercase tracking-widest rounded-lg transition-all shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50"
                   >
                     Search
@@ -1221,7 +1258,7 @@ export default function App() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-2">
                   <div className="flex items-center gap-2">
-                    <Search className="w-3.5 h-3.5 text-amber-500" / >
+                    <Search className="w-3.5 h-3.5 text-amber-500" />
                     <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Search Results</h2>
                   </div>
                   <button onClick={() => setSearchResults([])} className="text-[8px] text-neutral-600 uppercase font-black hover:text-white">Clear</button>
@@ -1232,12 +1269,12 @@ export default function App() {
                     const resKey = `search-${res.artist}-${res.title}-${idx}`;
                     return (
                       <div 
-                         key={resKey} 
+                        key={resKey} 
                         className="group flex items-center justify-between p-2 border-b border-amber-500/10 last:border-0 hover:bg-amber-500/10 transition-colors cursor-pointer"
-                         onClick={() => handleSearch(undefined, `${res.artist} - ${res.title}`)}
+                        onClick={() => handleSearch(undefined, `${res.artist} - ${res.title}`)}
                       >
                         <div className="flex-1 min-w-0 flex items-center gap-3">
-                          <Music className="w-3 h-3 text-amber-500/40 shrink-0" / >
+                          <Music className="w-3 h-3 text-amber-500/40 shrink-0" />
                           <div className="truncate">
                             <span className="font-bold text-white text-[11px] mr-2">{res.title}</span>
                             <span className="text-[9px] text-neutral-500 uppercase tracking-wider">{res.artist}</span>
@@ -1251,15 +1288,15 @@ export default function App() {
                           }}
                           className="p-2 transition-all"
                         >
-                           {isFav ? (
-                             <Heart className="w-3.5 h-3.5 text-amber-500 fill-amber-500" / >
-                           ) : (
-                             savingId === `${res.artist}-${res.title}` ? (
-                               <RotateCcw className="w-3.5 h-3.5 text-amber-500 animate-spin" / >
-                             ) : (
-                               <Plus className={cn("w-3.5 h-3.5 transition-colors", "text-amber-500/40 hover:text-amber-500")} / >
-                             )
-                           )}
+                          {isFav ? (
+                            <Heart className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                          ) : (
+                            savingId === `${res.artist}-${res.title}` ? (
+                              <RotateCcw className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+                            ) : (
+                              <Plus className={cn("w-3.5 h-3.5 transition-colors", "text-amber-500/40 hover:text-amber-500")} />
+                            )
+                          )}
                         </button>
                       </div>
                     );
@@ -1272,7 +1309,7 @@ export default function App() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between px-2">
                   <div className="flex items-center gap-2">
-                    <Heart className="w-3.5 h-3.5 text-amber-500 fill-amber-500" / >
+                    <Heart className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                     <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">{user ? "My Library" : "Guest Library"}</h2>
                   </div>
                   <span className="text-[8px] text-neutral-600 uppercase font-bold">{displayLibrary.length} tracks</span>
@@ -1282,12 +1319,12 @@ export default function App() {
                   <div className="bg-neutral-900/40 border border-neutral-800 rounded-lg overflow-hidden max-h-[250px] overflow-y-auto">
                     {displayLibrary.map((ps) => (
                       <div 
-                         key={ps.id} 
+                        key={ps.id} 
                         className="group flex items-center justify-between p-1.5 px-3 border-b border-neutral-800/20 last:border-0 hover:bg-neutral-800/50 transition-colors cursor-pointer"
-                         onClick={() => selectPreloaded(ps)}
+                        onClick={() => selectPreloaded(ps)}
                       >
                         <div className="flex-1 min-w-0 flex items-center gap-2.5">
-                          <Music className="w-3.5 h-3.5 text-neutral-700 shrink-0" / >
+                          <Music className="w-3.5 h-3.5 text-neutral-700 shrink-0" />
                           <div className="flex-1 min-w-0 flex items-baseline gap-2 truncate">
                             <div className="font-black text-sm text-white truncate leading-tight group-hover:text-amber-400 transition-colors uppercase italic">{ps.title}</div>
                             <div className="text-[9px] text-neutral-500 uppercase tracking-tighter font-black shrink-0">{ps.artist}</div>
@@ -1297,7 +1334,7 @@ export default function App() {
                           onClick={(e) => { e.stopPropagation(); handleDeleteSong(ps.id); }}
                           className="p-1 px-3 text-neutral-800 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
                         >
-                          <Trash2 className="w-4 h-4" / >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
@@ -1312,125 +1349,239 @@ export default function App() {
               </div>
             )}
 
-            {recommendations.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" / >
-                    <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">AI Suggestions</h2>
-                  </div>
-                  <button 
-                    onClick={handleRefreshRecs}
-                    disabled={isRefreshingRecs || loadingRecs}
-                    className="text-[8px] text-neutral-600 uppercase font-black hover:text-amber-500 transition-colors flex items-center gap-1 active:scale-95 disabled:opacity-50"
-                  >
-                    <RotateCcw className={cn("w-2.5 h-2.5", isRefreshingRecs && "animate-spin")} / >
-                    Refresh
-                  </button>
+            {/* Combined Discover Section (Classics + AI Suggestions) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-2">
+                  <Music className="w-3.5 h-3.5 text-neutral-500" />
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Discover</h2>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {recommendations.slice(0, 8).map((rec, idx) => (
-                    <div 
-                      key={`rec-${idx}`} 
-                      className="group flex items-center justify-between p-2.5 bg-neutral-900/40 border border-neutral-800/50 rounded-xl hover:bg-neutral-800/80 hover:border-amber-500/20 transition-all cursor-pointer"
-                      onClick={() => handleSearch(undefined, `${rec.artist} - ${rec.title}`)}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-[11px] text-white truncate leading-tight uppercase italic group-hover:text-amber-500 transition-colors">{rec.title}</div>
-                        <div className="text-[8px] text-neutral-500 uppercase tracking-widest font-black truncate">{rec.artist}</div>
-                      </div>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSaveSong(rec);
-                        }}
-                        className="p-1.5 text-neutral-700 hover:text-amber-500 transition-colors active:scale-110"
+                <div className="flex items-center gap-2">
+                  {loadingRecs && <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between px-3 py-1 border-b border-neutral-800 bg-neutral-950/30">
+                <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500">Suggested for you</span>
+                <button 
+                  onClick={handleRefreshRecs}
+                  disabled={isRefreshingRecs || loadingRecs}
+                  className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-tight text-amber-500 hover:text-amber-400 transition-colors disabled:opacity-50"
+                >
+                  <RotateCcw className={cn("w-2 h-2", (isRefreshingRecs || loadingRecs) && "animate-spin")} />
+                  Refresh
+                </button>
+              </div>
+
+              <div className="bg-neutral-900/40 border border-neutral-800 rounded-lg overflow-hidden max-h-[500px] overflow-y-auto shadow-inner">
+                {/* AI Recommendations */}
+                {recommendations && recommendations.length > 0 ? (
+                  recommendations
+                    .filter(rec => !displayLibrary.some(l => 
+                      l.title.toLowerCase().trim() === rec.title.toLowerCase().trim() &&
+                      l.artist.toLowerCase().trim() === rec.artist.toLowerCase().trim()
+                    ))
+                    .map((rec, idx) => {
+                    const recKey = `rec-${rec.artist}-${rec.title}-${idx}`;
+                    return (
+                      <div 
+                        key={recKey} 
+                        className="group flex items-center justify-between p-1.5 px-3 border-b border-neutral-800/20 hover:bg-neutral-800/50 transition-colors cursor-pointer"
+                        onClick={() => handleSearch(undefined, `${rec.artist} - ${rec.title}`)}
                       >
-                        <Heart className="w-3.5 h-3.5" / >
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                          <div className="flex-1 min-w-0 flex items-center gap-3">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <div className="truncate flex items-baseline gap-2">
+                              <div className="font-black text-sm text-white truncate leading-tight group-hover:text-red-500 transition-colors uppercase italic">{rec.title}</div>
+                              <div className="text-[9px] text-neutral-500 uppercase tracking-tighter font-black shrink-0">{rec.artist}</div>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (savingId === `${rec.artist}-${rec.title}`) return;
+                              handleSaveSong(rec);
+                            }}
+                            className="p-1 px-3 hover:scale-110 transition-transform text-neutral-600 hover:text-amber-500"
+                          >
+                            {savingId === `${rec.artist}-${rec.title}` ? (
+                               <RotateCcw className="w-4 h-4 text-amber-500 animate-spin" />
+                            ) : (
+                               <Plus className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })
+                ) : !loadingRecs && (
+                   <div className="p-6 text-center text-neutral-600 text-[10px] uppercase tracking-widest font-bold">
+                     No suggestions available. Click refresh to load some!
+                   </div>
+                )}
 
-            {!user && (
-              <div className="mt-12 p-8 bg-amber-500 rounded-3xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform duration-500">
-                  <Zap className="w-24 h-24 text-black" / >
-                </div>
-                <div className="relative z-10">
-                  <h3 className="text-2xl font-black text-black uppercase tracking-tighter mb-2 italic">Sync across devices</h3>
-                  <p className="text-black/70 text-xs font-bold uppercase tracking-widest mb-6 max-w-xs leading-relaxed">
-                    Create an account to save your library forever and access it from anywhere.
-                  </p>
-                  <button 
-                    onClick={handleLogin}
-                    className="px-6 py-3 bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-900 transition-all active:scale-95 shadow-xl"
-                  >
-                    Join Now Free
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Featured Section (fallback or static) */}
-            <div className="mt-16">
-              <div className="flex items-center gap-2 mb-6 px-2">
-                <div className="w-1 h-1 bg-amber-500 rounded-full" / >
-                <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500">Featured Classics</h2>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {PRELOADED_SONGS.map((ps, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => selectPreloaded(ps)}
-                    className="flex flex-col items-start p-3 bg-neutral-900/30 border border-neutral-800 rounded-xl hover:bg-neutral-800/60 hover:border-neutral-700 transition-all text-left active:scale-95"
-                  >
-                    <span className="text-[10px] font-black text-white uppercase italic truncate w-full mb-0.5">{ps.title}</span>
-                    <span className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest truncate w-full">{ps.artist}</span>
-                  </button>
-                ))}
+                {/* Preloaded Classics */}
+                {PRELOADED_SONGS
+                  .filter(ps => !displayLibrary.some(lib => 
+                    lib.title.toLowerCase().trim() === ps.title.toLowerCase().trim() &&
+                    lib.artist.toLowerCase().trim() === ps.artist.toLowerCase().trim()
+                  ))
+                  .sort((a, b) => {
+                    const artistComp = a.artist.localeCompare(b.artist);
+                    if (artistComp !== 0) return artistComp;
+                    return a.title.localeCompare(b.title);
+                  })
+                  .map((ps, idx) => {
+                    const classicKey = `classic-${ps.artist}-${ps.title}-${idx}`;
+                    return (
+                      <div 
+                        key={classicKey} 
+                        className="group flex items-center justify-between p-1.5 px-3 border-b border-neutral-800/20 last:border-0 hover:bg-neutral-800/50 transition-colors cursor-pointer"
+                        onClick={() => selectPreloaded(ps as any)}
+                      >
+                        <div className="flex-1 min-w-0 flex items-center gap-3">
+                          <Music className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
+                          <div className="flex-1 min-w-0 flex items-baseline gap-2 truncate">
+                            <div className="font-black text-sm text-white truncate leading-tight group-hover:text-amber-400 transition-colors uppercase italic">{ps.title}</div>
+                            <div className="text-[9px] text-neutral-500 uppercase tracking-tighter font-black shrink-0">{ps.artist}</div>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (savingId === `${ps.artist}-${ps.title}`) return;
+                            handleSaveSong(ps);
+                          }}
+                          className="p-1 px-3 hover:scale-110 transition-transform text-neutral-600 hover:text-amber-500"
+                        >
+                          {savingId === `${ps.artist}-${ps.title}` ? (
+                             <RotateCcw className="w-4 h-4 text-amber-500 animate-spin" />
+                          ) : (
+                             <Plus className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
+
+            
+            {!user && (
+              <div className="mt-8 space-y-4">
+                <div className="p-10 bg-neutral-900/30 rounded-3xl border border-white/5 text-center group cursor-pointer hover:bg-neutral-900/50 transition-all border-dashed"
+                     onClick={() => { setLoginMode('signin'); setIsLoginModalOpen(true); }}>
+                  <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-amber-500/20 group-hover:scale-110 transition-transform">
+                    <LogIn className="w-6 h-6 text-black" />
+                  </div>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tighter mb-1">
+                    Access Your Library
+                  </h3>
+                  <p className="text-[9px] text-neutral-500 uppercase tracking-widest font-bold mb-6">
+                    Sign in to save your chords and sync across devices
+                  </p>
+                  <button 
+                    className="px-8 py-3 bg-white text-black rounded-lg font-black uppercase tracking-widest text-[10px] transition-all hover:bg-amber-500 hover:shadow-xl hover:shadow-amber-500/20 active:scale-95"
+                  >
+                    Get Started
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <div className="px-3 py-1 bg-white/10 rounded-lg text-[8px] font-black uppercase tracking-widest text-neutral-400">One-Tap</div>
+                  <div className="flex-1 text-[10px] font-bold text-neutral-300 uppercase tracking-tight">Quick access with Google</div>
+                  <button 
+                    onClick={handleGoogleLogin}
+                    className="p-3 bg-white text-black rounded-xl hover:bg-neutral-200 transition-all active:scale-95 shadow-lg"
+                    title="Sign in with Google"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {song && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className={cn(
+              "space-y-6",
+              (() => {
+                const totalLines = song.sections.reduce((acc, s) => acc + s.lines.length + 1, 0);
+                if (totalLines > 80) return "print:text-[7pt] print-tight";
+                if (totalLines > 60) return "print:text-[8pt] print-tight";
+                if (totalLines > 40) return "print:text-[9.5pt]";
+                return "print:text-[11pt]";
+              })()
+            )}
           >
-            <header className="relative py-12 px-4 text-center overflow-hidden rounded-3xl mb-4">
-              <div className="absolute inset-0 bg-neutral-900/40 backdrop-blur-3xl" / >
-              <div className="absolute inset-0 bg-gradient-to-b from-amber-500/5 to-transparent" / >
-              
-              <div className="relative z-10">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full mb-6">
-                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" / >
-                  <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest italic">AI Generated Sheet</span>
-                </div>
-                
-                <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter uppercase italic leading-none mb-3 drop-shadow-2xl">{song.title}</h2>
-                <p className="text-sm md:text-lg font-black text-amber-500 uppercase tracking-[0.3em] mb-8 italic">{song.artist}</p>
+            <header className="flex justify-between items-center border-b border-[#222] pb-4 print:pb-1 print:mb-1">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <h2 className="text-2xl font-black text-white print:text-black uppercase italic">{song.title}</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-red-500 uppercase tracking-widest">{song.artist}</span>
+                  <button 
+                    onClick={() => {
+                      const isFav = displayLibrary.some(s => s.title === song.title && s.artist === song.artist);
+                      isFav ? handleUnsaveSong(song.artist, song.title) : handleSaveSong(song);
+                    }}
+                    disabled={isSaving}
+                    className={cn(
+                      "p-1.5 rounded-full transition-all shadow-lg print:hidden",
+                      displayLibrary.some(s => s.title === song.title && s.artist === song.artist) 
+                        ? "bg-amber-500 text-black" 
+                        : "bg-neutral-800 text-neutral-400 hover:text-amber-500"
+                    )}
+                    title={displayLibrary.some(s => s.title === song.title && s.artist === song.artist) ? "Remove from Favorites" : "Add to Favorites"}
+                  >
+                    <Heart className={cn("w-4 h-4", displayLibrary.some(s => s.title === song.title && s.artist === song.artist) && "fill-current")} />
+                  </button>
 
-                <div className="flex flex-wrap justify-center items-center gap-3">
-                   <div className="flex items-center gap-1.5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-lg border border-white/5 shadow-xl">
-                    <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest">Key:</span>
-                    <span className="text-xs font-black text-white uppercase">{transposeChord(song.originalKey, keyOffset)}</span>
-                   </div>
-                   <div className="flex items-center gap-1.5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-lg border border-white/5 shadow-xl">
-                    <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest">Tempo:</span>
-                    <span className="text-xs font-black text-white">{currentTempo || 120} <span className="text-[8px] text-neutral-500 uppercase">BPM</span></span>
-                   </div>
+                  <button 
+                    onClick={handlePrint}
+                    className="p-1.5 rounded-full bg-neutral-800 text-neutral-400 hover:text-amber-500 transition-all shadow-lg print:hidden flex items-center gap-2 px-3"
+                    title="Print to PDF (A4 Layout)"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-widest leading-none">Print PDF</span>
+                  </button>
                 </div>
+              </div>
+              <div className="text-right flex flex-col items-end gap-1.5">
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => {
+                      const next = !isEasyMode;
+                      setIsEasyMode(next);
+                      if (song) setKeyOffset(next ? getEasyKeyOffset(song.sections) : 0);
+                    }}
+                    className={cn(
+                      "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border transition-all",
+                      isEasyMode 
+                        ? "bg-amber-500 border-amber-500 text-black shadow-[0_0_10px_rgba(245,158,11,0.3)]" 
+                        : "bg-neutral-900 border-[#333] text-neutral-500 hover:text-amber-500"
+                    )}
+                  >
+                    Easy
+                  </button>
+                  <span className="text-[10px] font-bold text-amber-500 px-2 py-0.5 bg-neutral-900 border border-[#333] rounded">
+                    {song.originalKey} ({keyOffset >= 0 ? `+${keyOffset}` : keyOffset})
+                  </span>
+                </div>
+                <span className="text-[9px] text-neutral-600 uppercase font-mono">{currentTempo} BPM</span>
               </div>
             </header>
 
             {/* Quick Chord Guide */}
-            <div className="flex flex-wrap gap-2 items-center print:hidden chord-guide-print-hide">
-              <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mr-2">Chords:</span>
+            <div className="flex flex-wrap gap-2 items-center mb-1">
+              <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500 print:text-black/50 mr-2">Chords:</span>
               {Array.from(new Set(song.sections.flatMap(s => s.lines.flatMap(l => {
                 const match = l.match(/\[([A-G][#b]?[^\]]*)\]/g);
                 return match ? match.map(m => transposeChord(m.slice(1, -1).trim(), keyOffset)) : [];
@@ -1438,32 +1589,26 @@ export default function App() {
                 <button 
                   key={`guide-${c}`}
                   onClick={() => handleChordClick(c as string)}
-                  className="px-2 py-1 bg-neutral-900 hover:bg-neutral-800 border border-[#222] rounded text-[10px] font-bold text-amber-500 transition-colors uppercase"
+                  className="px-2 py-1 bg-neutral-900 md:hover:bg-neutral-800 border border-[#222] rounded text-[10px] font-bold text-amber-500 transition-colors uppercase print:border-none print:bg-transparent print:p-0 print:mr-1 print:text-black"
                 >
                   {c as string}
                 </button>
               ))}
             </div>
 
-            {/* Strumming Suggestion */}
-            {isStrummingEnabled && song.strummingPattern && (
+            {/* Strumming Pattern Section */}
+            {showStrummingPattern && song.strummingPattern && (
               <motion.div 
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl relative overflow-hidden group"
+                className="flex items-center gap-3 bg-amber-500/5 border border-amber-500/10 px-3 py-1.5 rounded w-fit mb-4 shadow-sm print:flex print:border-none print:shadow-none print:p-0 print:mb-2 print:mt-1"
               >
-                <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Music className="w-8 h-8 text-amber-500" />
+                <div className="flex flex-col">
+                  <span className="text-[7px] font-black text-amber-500/40 uppercase tracking-widest leading-none mb-1 print:text-black/50">Suggested Strumming Pattern</span>
+                  <span className="text-sm font-black text-amber-500 tracking-[0.4em] font-mono leading-none print:text-black print:text-[10pt]">
+                    {song.strummingPattern}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="p-1.5 bg-amber-500/20 rounded-lg">
-                    <Music className="w-3 h-3 text-amber-500" />
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">Suggested Strumming</span>
-                </div>
-                <p className="text-sm font-black text-white italic tracking-tight">
-                  {song.strummingPattern}
-                </p>
               </motion.div>
             )}
 
@@ -1488,97 +1633,95 @@ export default function App() {
                 </div>
               ))}
             </div>
-
-            <div className="mt-12 text-center p-8 bg-neutral-900/30 rounded-3xl border border-neutral-900 border-dashed print:hidden">
-               <Music className="w-8 h-8 text-neutral-800 mx-auto mb-4" / >
-               <p className="text-[8px] text-neutral-600 uppercase font-black tracking-[0.3em]">End of Song</p>
-            </div>
           </motion.div>
         )}
       </main>
 
-      {/* Toolbars */}
+      {/* Control Sidebar */}
       <AnimatePresence>
-        {song && (
+        {selectedChord && (
           <>
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setSelectedChord(null)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100]"
+            />
             <motion.div
-              initial={{ y: 100 }}
-              animate={{ y: 0 }}
-              exit={{ y: 100 }}
-              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 print:hidden"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-64 bg-neutral-950 border border-[#333] rounded-2xl p-6 z-[101] shadow-2xl"
             >
-              <div className="bg-neutral-950/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 flex items-center gap-1 shadow-2xl shadow-black/50">
-                <button
-                  onClick={() => setIsScrolling(!isScrolling)}
-                  className={cn(
-                    "flex items-center gap-2 px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all active:scale-95",
-                    isScrolling 
-                      ? "bg-red-500 text-white shadow-lg shadow-red-500/20" 
-                      : "bg-amber-500 text-black shadow-lg shadow-amber-500/20"
-                  )}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col">
+                  <h3 className="text-2xl font-black text-amber-500">{selectedChord.name}</h3>
+                  <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Chord Diagram</p>
+                </div>
+                <button 
+                  onClick={() => setSelectedChord(null)}
+                  className="p-1 text-neutral-500 hover:text-white"
                 >
-                  {isScrolling ? <Pause className="w-4 h-4" / > : <Play className="w-4 h-4 fill-current" / >}
-                  <span>{isScrolling ? 'Stop' : 'Autoscroll'}</span>
+                  <X className="w-5 h-5" />
                 </button>
+              </div>
 
-                <div className="w-px h-8 bg-white/10 mx-1" / >
+              <div className="flex justify-center py-4 relative group">
+                {loadingChord ? (
+                  <div className="w-[120px] h-[120px] flex items-center justify-center bg-neutral-900/50 rounded-lg border border-neutral-800">
+                    <RotateCcw className="w-6 h-6 text-amber-500 animate-spin" />
+                  </div>
+                ) : selectedChord.positions.length > 0 ? (
+                  <div className="flex flex-col items-center">
+                    <ChordDiagram position={selectedChord.positions[selectedChord.currentIndex]} size={160} />
+                    
+                    {selectedChord.positions.length > 1 && (
+                      <div className="flex items-center gap-3 mt-4">
+                        <button 
+                          onClick={() => setSelectedChord(prev => prev ? { ...prev, currentIndex: (prev.currentIndex - 1 + prev.positions.length) % prev.positions.length } : null)}
+                          className="p-2 bg-neutral-900 border border-[#333] rounded-full hover:bg-neutral-800 text-white transition-all shadow-lg active:scale-95"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest font-black">
+                          {selectedChord.currentIndex + 1} / {selectedChord.positions.length}
+                        </span>
+                        <button 
+                          onClick={() => setSelectedChord(prev => prev ? { ...prev, currentIndex: (prev.currentIndex + 1) % prev.positions.length } : null)}
+                          className="p-2 bg-neutral-900 border border-[#333] rounded-full hover:bg-neutral-800 text-white transition-all shadow-lg active:scale-95"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-[120px] h-[120px] flex items-center justify-center bg-neutral-900/50 rounded-lg border border-neutral-800 p-4 text-center">
+                    <p className="text-[10px] text-neutral-600 uppercase tracking-widest font-bold leading-relaxed">Fingering not found for this variation</p>
+                  </div>
+                )}
+              </div>
 
-                <button
-                  onClick={() => setKeyOffset(prev => prev - 1)}
-                  className="p-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white rounded-xl transition-all"
-                  title="Transpose Down"
-                >
-                  <Minus className="w-4 h-4" / >
-                </button>
-                <button
-                  onClick={() => setKeyOffset(0)}
-                  className="px-3 py-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl transition-all font-black text-[10px] uppercase"
-                  title="Reset Key"
-                >
-                  Key
-                </button>
-                <button
-                  onClick={() => setKeyOffset(prev => prev + 1)}
-                  className="p-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white rounded-xl transition-all"
-                  title="Transpose Up"
-                >
-                  <Plus className="w-4 h-4" / >
-                </button>
-
-                <div className="w-px h-8 bg-white/10 mx-1" / >
-
-                <button
-                   onClick={handlePrint}
-                  className="p-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white rounded-xl transition-all"
-                  title="Print / Save PDF"
-                >
-                  <Printer className="w-4 h-4" / >
-                </button>
-
-                <div className="w-px h-8 bg-white/10 mx-1" / >
-                
-                <button
-                  onClick={() => {
-                    const isFav = displayLibrary.some(l => l.title === song.title && l.artist === song.artist);
-                    isFav ? handleUnsaveSong(song.artist, song.title) : handleSaveSong(song);
-                  }}
-                  className="p-3 bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-all"
-                  title="Save to Favorites"
-                >
-                   <Heart className={cn("w-4 h-4", 
-                     displayLibrary.some(l => l.title === song.title && l.artist === song.artist) 
-                       ? "text-amber-500 fill-amber-500" 
-                       : "text-neutral-400"
-                   )} / >
-                </button>
+              <div className="mt-8 pt-4 border-t border-[#222]">
+                <div className="flex items-center gap-2 mb-3">
+                  <Info className="w-3 h-3 text-neutral-500" />
+                  <p className="text-[9px] text-neutral-500 uppercase font-black tracking-widest">Guide</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[8px] text-neutral-600 uppercase font-bold tracking-tighter">Strings (L to R)</p>
+                    <p className="text-[10px] font-mono text-neutral-400">E A D G B e</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[8px] text-neutral-600 uppercase font-bold tracking-tighter">Fingers</p>
+                    <p className="text-[10px] font-mono text-neutral-400">1: Index, 2: Mid</p>
+                    <p className="text-[10px] font-mono text-neutral-400">3: Ring, 4: Pinky</p>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </>
         )}
-      </AnimatePresence>
 
-      {/* Settings Panel Overlay */}
-      <AnimatePresence>
         {isSettingsOpen && (
           <>
             <motion.div 
@@ -1740,6 +1883,39 @@ export default function App() {
 
                     <div className="flex items-center justify-between p-3 bg-neutral-800/30 rounded-lg border border-neutral-800">
                       <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-white uppercase tracking-widest">Share & Export</span>
+                        <span className="text-[8px] text-neutral-500 uppercase font-black tracking-widest">Print to PDF / A4 Sheet</span>
+                      </div>
+                      <button 
+                        onClick={handlePrint}
+                        className="px-3 py-1.5 bg-amber-500 text-black rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-amber-400 transition-colors flex items-center gap-2 shadow-lg"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        Print PDF
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-neutral-800/30 rounded-lg border border-neutral-800">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-neutral-200 uppercase tracking-widest">Strumming Pattern</span>
+                        <span className="text-[8px] text-neutral-500 uppercase font-black tracking-widest">Show suggested patterns</span>
+                      </div>
+                      <button 
+                        onClick={() => setShowStrummingPattern(!showStrummingPattern)}
+                        className={cn(
+                          "w-10 h-5 rounded-full relative transition-all duration-300",
+                          showStrummingPattern ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]" : "bg-neutral-900 border border-[#333]"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-1 w-3 h-3 rounded-full transition-all duration-300",
+                          showStrummingPattern ? "left-6 bg-black" : "left-1 bg-neutral-500"
+                        )} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-neutral-800/30 rounded-lg border border-neutral-800">
+                      <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-white uppercase tracking-widest">Easy Chords</span>
                         <span className="text-[8px] text-neutral-500 uppercase font-bold">Transpose to easy keys</span>
                       </div>
@@ -1762,345 +1938,376 @@ export default function App() {
                         )} />
                       </button>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-neutral-800/30 rounded-lg border border-neutral-800">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-white uppercase tracking-widest">Strumming Guide</span>
-                        <span className="text-[8px] text-neutral-500 uppercase font-bold">Show suggested patterns</span>
-                      </div>
-                      <button 
-                        onClick={() => setIsStrummingEnabled(!isStrummingEnabled)}
-                        className={cn(
-                          "w-10 h-5 rounded-full relative transition-all duration-300",
-                          isStrummingEnabled ? "bg-amber-500" : "bg-neutral-700"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
-                          isStrummingEnabled ? "left-6" : "left-1"
-                        )} />
-                      </button>
-                    </div>
                   </div>
                 </div>
 
                 {/* Stripe Infrastructure Section */}
-                {user?.email === 'sunnyhothi43-cmyk' && (
+                {user?.email === 'sunny.hothi43@gmail.com' && (
                   <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-neutral-400 flex items-center gap-1.5">
-                        <Info className="w-3 h-3 text-amber-500" />
-                        Infrastructure
+                        <Zap className="w-3 h-3 text-amber-500" />
+                        Stripe Detail (Admin Only)
                       </h4>
+                      {stripeStatus && (
+                        <div className={cn(
+                          "px-1.5 py-0.5 rounded-full text-[7px] font-bold uppercase tracking-wider",
+                          stripeStatus.isSkPrefix && !stripeStatus.isTruncated ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
+                        )}>
+                          {stripeStatus.isSkPrefix && !stripeStatus.isTruncated ? 'Configured' : 'Error'}
+                        </div>
+                      )}
                     </div>
                     
-                    <div className="space-y-3">
-                       <div className="p-3 bg-black/40 rounded-xl border border-white/5">
-                          <div className="flex items-center justify-between mb-1">
-                             <span className="text-[8px] font-black uppercase text-neutral-500">Stripe Status</span>
-                             <span className={cn("text-[8px] font-black uppercase", stripeStatus ? "text-green-500" : "text-red-500")}>
-                               {stripeStatus ? 'Connected' : 'Offline'}
-                             </span>
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <p className="text-[8px] text-neutral-600 uppercase font-black tracking-tighter">Secret Key Status</p>
+                        <div className="text-[9px] font-mono text-neutral-400 bg-black/40 p-2.5 rounded border border-neutral-800/50 space-y-2">
+                          <div className="flex justify-between">
+                            <span>Prefix:</span>
+                            <span className={cn(stripeStatus?.isSkPrefix ? "text-green-500" : "text-red-500")}>
+                              {stripeStatus?.secretKeyPrefix || 'None'}...
+                            </span>
                           </div>
-                          {stripeStatus && (
-                            <div className="space-y-1 mt-2">
-                              <div className="flex justify-between">
-                                <span className="text-[7px] text-neutral-600">Secret Key</span>
-                                <span className="text-[7px] text-white">{stripeStatus.secretKeyPrefix}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[7px] text-neutral-600">SK Format</span>
-                                <span className={cn("text-[7px]", stripeStatus.isSkPrefix ? "text-green-500" : "text-red-500")}>{stripeStatus.isSkPrefix ? 'Valid' : 'Invalid'}</span>
-                              </div>
-                            </div>
+                          <div className="flex justify-between">
+                            <span>Length:</span>
+                            <span>{stripeStatus?.secretKeyLength || 0} chars</span>
+                          </div>
+                          {stripeStatus?.isTruncated && (
+                            <p className="text-[8px] text-red-400 italic">Truncated! Re-copy from Stripe Dashboard.</p>
                           )}
-                       </div>
+                          {stripeStatus?.secretKeyPrefix === 'Nil' && (
+                            <p className="text-[8px] text-red-400 font-bold uppercase">Placeholder "Nil" detected!</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <p className="text-[8px] text-neutral-600 uppercase font-black tracking-tighter">Publishable Key</p>
+                        <p className="text-[9px] font-mono text-neutral-400 bg-black/40 p-2.5 rounded break-all border border-neutral-800/50 leading-relaxed">
+                          {STRIPE_PUBLISHABLE_KEY}
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <p className="text-[8px] text-neutral-600 uppercase font-black tracking-tighter">Price IDs (Subscription & Lifetime)</p>
+                        <div className="flex flex-col gap-1.5">
+                          {[
+                            { label: 'Monthly', value: stripeStatus?.priceIds?.monthly },
+                            { label: 'Yearly', value: stripeStatus?.priceIds?.yearly },
+                            { label: 'Lifetime', value: stripeStatus?.priceIds?.lifetime }
+                          ].map((item) => (
+                            <div key={item.label} className="group">
+                              <div className="flex justify-between items-center mb-0.5">
+                                <p className="text-[7px] text-neutral-700 uppercase font-bold">{item.label}</p>
+                                {item.value?.startsWith('http') && (
+                                  <span className="text-[7px] text-red-500 font-black uppercase">URL Error</span>
+                                )}
+                                {item.value?.startsWith('prod_') && (
+                                  <span className="text-[7px] text-red-500 font-black uppercase">Product ID Error</span>
+                                )}
+                              </div>
+                              <p className={cn(
+                                "text-[9px] font-mono p-2 rounded truncate border leading-relaxed transition-colors",
+                                (item.value?.startsWith('http') || item.value?.startsWith('prod_'))
+                                  ? "bg-red-500/10 border-red-500/30 text-red-400" 
+                                  : "bg-black/40 text-neutral-400 border-neutral-800/50"
+                              )}>
+                                {item.value || 'Not Configured'}
+                              </p>
+                              {item.value?.startsWith('http') && (
+                                <p className="text-[7px] text-red-500/70 italic mt-0.5 px-1">
+                                  Paste the "Price ID" (price_...), not the link!
+                                </p>
+                              )}
+                              {item.value?.startsWith('prod_') && (
+                                <p className="text-[7px] text-red-500/70 italic mt-0.5 px-1">
+                                  Paste the "Price ID" (price_...), not the Product ID!
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-neutral-800">
+                         <p className="text-[9px] text-neutral-500 italic leading-snug">
+                           To amend these details, click the Settings icon in the top right of the AI Studio Build interface and select "Environment Variables".
+                         </p>
+                      </div>
                     </div>
                   </div>
                 )}
-                
-                <button 
-                  onClick={() => logout()}
-                  className="w-full py-4 bg-neutral-900 hover:bg-red-900/20 text-neutral-500 hover:text-red-500 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all border border-neutral-800 active:scale-95"
-                >
-                  Sign Out
-                </button>
-
-                <div className="pt-10 text-center space-y-2">
-                  <p className="text-[8px] font-black text-neutral-700 uppercase tracking-[0.4em]">Chordstream v1.0.4</p>
-                  <p className="text-[7px] font-bold text-neutral-800 uppercase tracking-widest">Built with Gemini AI</p>
-                </div>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
-      {/* Paywall Overlay */}
+      {/* Playback Control */}
+      {song && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 p-1.5 pointer-events-none mb-0.5">
+          <div className="max-w-[240px] mx-auto flex items-center justify-between bg-neutral-950 border border-white/10 px-2.5 py-1.5 rounded-full shadow-2xl pointer-events-auto">
+            <button 
+              onClick={() => setIsScrolling(!isScrolling)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all",
+                isScrolling ? "bg-red-500/10 text-red-500 border border-red-500/10" : "bg-amber-500 text-black"
+              )}
+            >
+              {isScrolling ? <><Pause className="w-2 h-2" /> Stop</> : <><Play className="w-2 h-2" /> Scroll</>}
+            </button>
+
+            <div className="flex items-center gap-3">
+              <button 
+                id="floating-print-button"
+                onClick={() => handlePrint()}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 border border-amber-600 rounded-full text-black transition-all active:scale-90 print:hidden shadow-xl shadow-amber-500/40 cursor-pointer z-[100]"
+                title="Print A4 Song Sheet"
+              >
+                <Printer className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">PDF</span>
+              </button>
+              <div className="h-6 w-px bg-white/10" />
+              <button 
+                onClick={resetScroll}
+                className="p-2.5 hover:bg-neutral-900 border border-white/10 rounded-full text-white/70 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                title="Top"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+              <div className="h-6 w-px bg-white/10" />
+              <div className="flex flex-col items-end px-1">
+                <span className="text-[6px] uppercase tracking-tighter opacity-40 leading-none">BPM</span>
+                <span className="text-[10px] font-bold text-white font-mono leading-none">{currentTempo}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paywall Modal */}
       <AnimatePresence>
         {showPaywall && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[400] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4"
-          >
-             <motion.div
-               initial={{ scale: 0.9, y: 20 }}
-               animate={{ scale: 1, y: 0 }}
-               className="w-full max-w-lg bg-neutral-950 border border-amber-500/20 rounded-[2.5rem] overflow-hidden shadow-2xl relative"
-             >
-                {/* Close Button */}
-                <button 
-                  onClick={() => setShowPaywall(false)}
-                  className="absolute top-6 right-6 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all text-neutral-500 hover:text-white z-20"
-                >
-                  <X className="w-5 h-5" / >
-                </button>
-
-                <div className="relative p-8 md:p-12 text-center">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full mb-8">
-                    <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" / >
-                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Premium Access Required</span>
-                  </div>
-
-                  <h2 className="text-4xl md:text-5xl font-black text-white uppercase italic tracking-tighter leading-none mb-4">
-                    Level Up Your <br / ><span className="text-amber-500">Playing</span>
-                  </h2>
-
-                  <p className="text-neutral-400 text-sm font-bold uppercase tracking-widest mb-12 leading-relaxed">
-                    {paywallReason === 'favorites' 
-                      ? "You've reached the free limit of 5 favorites. Upgrade to save unlimited songs."
-                      : "Free users are limited to 5 prints. Upgrade to print your entire library."}
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                    <button 
-                      onClick={() => setSelectedPlanId('monthly')}
-                      className={cn(
-                        "p-6 rounded-3xl border-2 transition-all text-left group",
-                        selectedPlanId === 'monthly' ? "bg-amber-500 border-amber-500" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"
-                      )}
-                    >
-                      <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1", selectedPlanId === 'monthly' ? "text-black/60" : "text-neutral-500")}>Monthly</p>
-                      <p className={cn("text-2xl font-black", selectedPlanId === 'monthly' ? "text-black" : "text-white")}>$4.99</p>
-                    </button>
-
-                    <button 
-                      onClick={() => setSelectedPlanId('yearly')}
-                      className={cn(
-                        "p-6 rounded-3xl border-2 transition-all text-left relative overflow-hidden group",
-                        selectedPlanId === 'yearly' ? "bg-amber-500 border-amber-500" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"
-                      )}
-                    >
-                      <div className="absolute top-0 right-0 bg-black text-amber-500 text-[7px] font-black px-3 py-1 uppercase tracking-widest rounded-bl-xl">Best Value</div>
-                      <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1", selectedPlanId === 'yearly' ? "text-black/60" : "text-neutral-500")}>Annual</p>
-                      <p className={cn("text-2xl font-black", selectedPlanId === 'yearly' ? "text-black" : "text-white")}>$29.99</p>
-                    </button>
-                  </div>
-
-                  <button 
-                    onClick={() => handleCreateCheckoutSession(stripeStatus?.priceIds?.[selectedPlanId])}
-                    className="w-full py-5 bg-white hover:bg-neutral-200 text-black rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all active:scale-[0.98] shadow-2xl mb-6"
-                  >
-                    Unlock Premium Now
-                  </button>
-
-                  <div className="flex items-center justify-center gap-6 opacity-40">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle className="w-3 h-3" / >
-                      <span className="text-[8px] font-black uppercase">Unlimited Favorites</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle className="w-3 h-3" / >
-                      <span className="text-[8px] font-black uppercase">Unlimited Printing</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle className="w-3 h-3" / >
-                      <span className="text-[8px] font-black uppercase">Pro AI Features</span>
-                    </div>
-                  </div>
-                </div>
-             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Chord Modal */}
-      <AnimatePresence>
-        {selectedChord && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
-            onClick={() => setSelectedChord(null)}
-          >
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+              onClick={() => setShowPaywall(false)}
+            />
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-neutral-900 border border-white/10 rounded-[2rem] p-8 w-full max-w-sm text-center relative"
-              onClick={e => e.stopPropagation()}
+              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-neutral-950 border border-neutral-800 rounded-2xl shadow-2xl custom-scrollbar"
             >
               <button 
-                onClick={() => setSelectedChord(null)}
-                className="absolute top-6 right-6 p-2 text-neutral-500 hover:text-white transition-colors"
+                onClick={() => setShowPaywall(false)}
+                className="absolute top-4 right-4 p-2 text-neutral-500 hover:text-white transition-colors z-20"
               >
-                <X className="w-5 h-5" / >
+                <X className="w-5 h-5" />
               </button>
 
-              <div className="mb-6">
-                <h3 className="text-4xl font-black text-white uppercase italic tracking-tighter mb-1">{selectedChord.name}</h3>
-                <p className="text-[10px] text-amber-500 font-black uppercase tracking-[0.3em]">Chord Diagram</p>
-              </div>
-
-              <div className="bg-white/5 rounded-2xl p-6 mb-8 flex flex-col items-center justify-center min-h-[240px]">
-                {loadingChord ? (
-                  <div className="w-8 h-8 border-2 border-amber-500/10 border-t-amber-500 rounded-full animate-spin" / >
-                ) : selectedChord.positions.length > 0 ? (
-                  <ChordDiagram 
-                    chord={{
-                      frets: selectedChord.positions[selectedChord.currentIndex].frets,
-                      fingers: selectedChord.positions[selectedChord.currentIndex].fingers,
-                      barres: selectedChord.positions[selectedChord.currentIndex].barres || []
-                    }}
-                  / >
-                ) : (
-                  <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest">Position not found</p>
-                )}
-              </div>
-
-              {selectedChord.positions.length > 1 && (
-                <div className="flex items-center justify-center gap-4 mb-8">
-                  <button 
-                    onClick={() => setSelectedChord(prev => prev ? ({ ...prev, currentIndex: (prev.currentIndex - 1 + prev.positions.length) % prev.positions.length }) : null)}
-                    className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white transition-all active:scale-90"
-                  >
-                    <Minus className="w-4 h-4" / >
-                  </button>
-                  <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">
-                    Pos {selectedChord.currentIndex + 1} / {selectedChord.positions.length}
-                  </span>
-                  <button 
-                    onClick={() => setSelectedChord(prev => prev ? ({ ...prev, currentIndex: (prev.currentIndex + 1) % prev.positions.length }) : null)}
-                    className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white transition-all active:scale-90"
-                  >
-                    <Plus className="w-4 h-4" / >
-                  </button>
+              <div className="p-4 sm:p-8">
+                <div className="text-center mb-8 pt-4">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-red-500/10 mb-4">
+                    <Zap className="w-8 h-8 text-red-500" />
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tighter mb-2">
+                    {paywallReason === 'favorites' ? 'Library limit reached' : 'Print limit reached'}
+                  </h2>
+                  <p className="text-neutral-400 text-xs sm:text-sm max-w-md mx-auto">
+                    You've reached the free trial limit of 5 {paywallReason === 'favorites' ? 'favorite songs' : 'prints'}. 
+                    Upgrade to Chordstream Premium for unlimited access.
+                  </p>
                 </div>
-              )}
 
-              <button
-                onClick={() => setSelectedChord(null)}
-                className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 shadow-xl shadow-amber-500/10"
-              >
-                Got It
-              </button>
+                {error && (
+                  <div className="mb-6 bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3">
+                    <Info className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                    <div className="text-xs text-red-200 leading-relaxed font-medium">
+                      {error}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pb-2 max-w-xl mx-auto">
+                  {[
+                    {
+                      id: 'monthly',
+                      name: 'Monthly',
+                      price: '€10',
+                      interval: '/mo',
+                      priceId: import.meta.env.VITE_STRIPE_MONTHLY_PRICE_ID,
+                      features: ['Unlimited Favorites', 'Core Features'],
+                      badge: null,
+                      color: 'amber'
+                    },
+                    {
+                      id: 'yearly',
+                      name: 'Annual',
+                      price: '€60',
+                      interval: '/yr',
+                      priceId: import.meta.env.VITE_STRIPE_YEARLY_PRICE_ID,
+                      features: ['Save €60/year', 'Advanced Tools'],
+                      badge: 'Value',
+                      color: 'red'
+                    },
+                    {
+                      id: 'lifetime',
+                      name: 'Lifetime',
+                      price: '€120',
+                      interval: '',
+                      priceId: import.meta.env.VITE_STRIPE_LIFETIME_PRICE_ID,
+                      features: ['Forever Access', 'Future Updates'],
+                      badge: 'Legacy',
+                      color: 'purple'
+                    }
+                  ].map((plan) => (
+                    <div 
+                      key={plan.id}
+                      onClick={() => setSelectedPlanId(plan.id)}
+                      className={cn(
+                        "relative p-2.5 rounded-lg flex flex-col transition-all border cursor-pointer active:scale-[0.98]",
+                        selectedPlanId === plan.id
+                          ? "bg-neutral-900 border-amber-500 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/30" 
+                          : "bg-neutral-950/40 border-neutral-800/50 hover:border-neutral-700"
+                      )}
+                    >
+                      {plan.badge && (
+                        <div className={cn(
+                          "absolute -top-1.5 left-2 text-[5px] font-black uppercase px-2 py-0.5 rounded-full tracking-tighter z-10 border",
+                          plan.id === 'yearly' 
+                            ? "bg-red-500 text-white border-red-400" 
+                            : "bg-neutral-800 text-neutral-400 border-neutral-700"
+                        )}>
+                          {plan.badge}
+                        </div>
+                      )}
+                      
+                      <div className="text-left mb-1.5">
+                        <span className={cn(
+                          "text-[6px] font-black uppercase tracking-widest transition-colors",
+                          selectedPlanId === plan.id ? "text-amber-500" : "text-neutral-500"
+                        )}>{plan.name}</span>
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-base font-black text-white">{plan.price}</span>
+                          {plan.interval && <span className="text-[7px] text-neutral-600 font-bold uppercase">{plan.interval}</span>}
+                        </div>
+                      </div>
+
+                      <ul className="space-y-1 mb-3 flex-1">
+                        {plan.features.map((feature, idx) => (
+                          <li key={idx} className="flex items-center gap-1 text-[8px] text-neutral-400 leading-tight">
+                            <CheckCircle className={cn("w-2 h-2 shrink-0", selectedPlanId === plan.id ? "text-amber-500" : "text-neutral-600")} />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPlanId(plan.id);
+                          handleCreateCheckoutSession(plan.priceId);
+                        }}
+                        disabled={isProcessingPayment || !plan.priceId}
+                        className={cn(
+                          "w-full py-1 rounded-md text-[7px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1",
+                          selectedPlanId === plan.id
+                            ? "bg-amber-500 hover:bg-amber-400 text-black shadow-sm" 
+                            : "bg-neutral-800/80 hover:bg-neutral-800 text-neutral-400"
+                        )}
+                      >
+                        {isProcessingPayment ? (
+                          <RotateCcw className="w-2 h-2 animate-spin" />
+                        ) : (
+                          <>
+                            <Zap className={cn("w-2 h-2", selectedPlanId === plan.id ? "fill-black" : "fill-neutral-600 text-neutral-600")} />
+                            {plan.id === 'lifetime' ? 'Get' : 'Select'}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+
+
+                <div className="mt-8 text-center border-t border-neutral-900 pt-6 pb-6">
+                  <p className="text-[9px] text-neutral-600 uppercase tracking-widest mb-4">Secure payments by Stripe. Cancel anytime.</p>
+                  
+                  {user && (
+                    <button 
+                      onClick={handleCreatePortalSession}
+                      disabled={isProcessingPayment}
+                      className="text-[9px] font-black uppercase tracking-widest text-neutral-700 hover:text-amber-500 transition-colors flex items-center gap-1 mx-auto"
+                    >
+                      <Settings className="w-2.5 h-2.5" />
+                      Manage Subscription & Billing
+                    </button>
+                  )}
+                </div>
+              </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
-
-      {/* CSS for custom scrollbar and print */}
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #222;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #333;
-        }
-        
-        @media print {
-          body {
-            background: white !important;
-            color: black !important;
-          }
-          .min-h-screen {
-            background: white !important;
-          }
-          nav, .print\\:hidden, button, .chord-guide-print-hide {
-            display: none !important;
-          }
-          main {
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
-            max-width: none !important;
-          }
-          .song-container-print {
-            color: black !important;
-          }
-          header {
-             padding: 20px 0 !important;
-             background: transparent !important;
-             border-bottom: 2px solid #eee !important;
-             border-radius: 0 !important;
-          }
-          header h2 {
-            color: black !important;
-            font-size: 24pt !important;
-          }
-          header p {
-            color: #666 !important;
-          }
-          .section-header-print {
-            color: #999 !important;
-            border-bottom: 1px solid #eee !important;
-            padding-top: 15pt !important;
-          }
-          .print-instrumental {
-             background: #f9f9f9 !important;
-             border: 1px solid #eee !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
 
-function LineRenderer({ line, fontSize, isIntro, onChordClick }: { line: string, fontSize: number, isIntro: boolean, onChordClick: (c: string) => any }) {
-  const segments = useMemo(() => parseChordSegments(line), [line]);
+const LineRenderer: React.FC<{ line: string; fontSize: number; isIntro?: boolean; onChordClick: (chord: string) => void }> = ({ line, fontSize, isIntro, onChordClick }) => {
+  const segments = parseChordSegments(line);
   
+  if (segments.length === 0 || (segments.length === 1 && !segments[0].chord && !segments[0].text.trim())) {
+    return <div className="text-neutral-500 py-0 leading-tight opacity-40 italic mt-0.5" style={{ fontSize: `${fontSize * 0.8}px` }}>{" "}</div>;
+  }
+
   // Detect if this is an instrumental line (lots of chords, little/no text)
+  const totalTextLength = segments.reduce((acc, s) => acc + s.text.length, 0);
   const chordCount = segments.filter(s => s.chord).length;
-  const totalTextLength = segments.reduce((acc, s) => acc + (s.text?.length || 0), 0);
   const isInstrumental = (chordCount > 0 && totalTextLength < 10) || isIntro;
 
   return (
     <div className={cn(
-      "flex flex-wrap items-end leading-none py-1.5 md:py-2",
+      "flex flex-wrap items-end font-mono group song-line-print w-full overflow-visible",
+      "break-all sm:break-normal",
       isInstrumental && "gap-x-8 py-2 md:py-3 border-y border-neutral-900/50 my-1 md:my-2 bg-neutral-900/10 px-3 rounded print-instrumental"
     )}>
       {segments.map((seg, i) => (
-        <div key={i} className={cn("relative flex flex-col", !isInstrumental && "mr-[0.1em]")}>
+        <div 
+          key={i} 
+          className={cn(
+            "relative pt-4 inline-block max-w-full chord-segment-print",
+            isInstrumental && "print:pt-0" // Instrumental lines in print use top-level padding
+          )}
+          style={{ wordWrap: 'break-word', overflowWrap: 'anywhere' }}
+        >
           {seg.chord && (
-            <button 
+            <span 
               onClick={() => onChordClick(seg.chord!)}
               className={cn(
-                "font-black text-amber-500 hover:text-amber-400 transition-colors uppercase select-none",
-                isInstrumental && "print:pt-0" // Instrumental lines in print use top-level padding
+                "absolute top-0 text-amber-500 font-black whitespace-nowrap leading-none transition-transform hover:scale-110 active:scale-95 cursor-pointer origin-left hover:text-white z-10 chord-print",
+                isInstrumental ? "text-base" : ""
               )}
               style={{ 
                 fontSize: `${fontSize * (isInstrumental ? 1.1 : 0.8)}px`,
-                marginBottom: isInstrumental ? '0' : '0.1em'
+                left: 0
               }}
             >
               {seg.chord}
-            </button>
+            </span>
           )}
           <span 
-            className={cn(
-              "text-white/90 whitespace-pre font-medium",
-              isInstrumental ? "text-base" : ""
-            )}
-            style={{ fontSize: `${fontSize}px` }}
+            className="text-[#E0E0E0] whitespace-pre-wrap transition-all leading-none py-0.5 inline-block min-h-[1em] lyrics-print"
+            style={{ 
+              fontSize: `${fontSize}px`,
+              // Add padding if chord is wider than text
+              paddingRight: seg.chord && (!seg.text || seg.text.length < seg.chord.length) ? `${seg.chord.length - (seg.text?.length || 0)}ch` : undefined
+            }}
           >
             {seg.text || (seg.chord && !isInstrumental ? " " : "")}
           </span>
@@ -2108,4 +2315,6 @@ function LineRenderer({ line, fontSize, isIntro, onChordClick }: { line: string,
       ))}
     </div>
   );
-}
+};
+
+

@@ -27,6 +27,7 @@
         "artist": { "type": "string" },
         "originalKey": { "type": "string" },
         "suggestedTempo": { "type": "number" },
+        "strummingPattern": { "type": "string" },
         "sections": {
           "type": "array",
           "items": {
