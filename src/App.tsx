@@ -1554,8 +1554,62 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              <div className="text-right flex flex-col items-end gap-1.5">
-                <div className="flex items-center gap-2">
+              <div className="text-right flex flex-col items-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {/* Transpose Controls */}
+                  <div className="flex items-center bg-neutral-900 border border-[#333] rounded-lg p-0.5 shadow-sm">
+                    <button 
+                      onClick={() => {
+                        setKeyOffset(prev => prev - 1);
+                        setIsEasyMode(false);
+                      }}
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500"
+                      title="Transpose Down"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <div className="px-2 py-0.5 flex flex-col items-center min-w-[50px] border-x border-[#333]">
+                      <span className="text-[7px] font-black text-amber-500/50 uppercase tracking-tighter leading-none mb-0.5">Key</span>
+                      <span className="text-[10px] font-bold text-amber-500 leading-none">
+                        {transposeChord(song.originalKey, keyOffset)}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setKeyOffset(prev => prev + 1);
+                        setIsEasyMode(false);
+                      }}
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500"
+                      title="Transpose Up"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* Tempo Controls */}
+                  <div className="flex items-center bg-neutral-900 border border-[#333] rounded-lg p-0.5 shadow-sm">
+                    <button 
+                      onClick={() => setCurrentTempo(prev => Math.max(40, prev - 5))}
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500"
+                      title="Slower"
+                    >
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <div className="px-2 py-0.5 flex flex-col items-center min-w-[50px] border-x border-[#333]">
+                      <span className="text-[7px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Tempo</span>
+                      <span className="text-[10px] font-bold text-neutral-200 leading-none font-mono">
+                        {currentTempo}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => setCurrentTempo(prev => Math.min(250, prev + 5))}
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500"
+                      title="Faster"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </button>
+                  </div>
+
                   <button 
                     onClick={() => {
                       const next = !isEasyMode;
@@ -1563,19 +1617,20 @@ export default function App() {
                       if (song) setKeyOffset(next ? getEasyKeyOffset(song.sections) : 0);
                     }}
                     className={cn(
-                      "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border transition-all",
+                      "text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-lg border transition-all h-full flex items-center justify-center",
                       isEasyMode 
-                        ? "bg-amber-500 border-amber-500 text-black shadow-[0_0_10px_rgba(245,158,11,0.3)]" 
+                        ? "bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]" 
                         : "bg-neutral-900 border-[#333] text-neutral-500 hover:text-amber-500"
                     )}
+                    title="Translate to easiest key"
                   >
                     Easy
                   </button>
-                  <span className="text-[10px] font-bold text-amber-500 px-2 py-0.5 bg-neutral-900 border border-[#333] rounded">
-                    {song.originalKey} ({keyOffset >= 0 ? `+${keyOffset}` : keyOffset})
-                  </span>
                 </div>
-                <span className="text-[9px] text-neutral-600 uppercase font-mono">{currentTempo} BPM</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[8px] font-black text-neutral-600 uppercase tracking-[0.2em]">Original: {song.originalKey}</span>
+                  <span className="text-[8px] font-black text-neutral-600 uppercase tracking-[0.2em]">{song.suggestedTempo} BPM</span>
+                </div>
               </div>
             </header>
 
