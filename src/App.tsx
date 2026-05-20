@@ -748,7 +748,6 @@ export default function App() {
   };
 
   const handleGoogleLogin = async () => {
-  const handleGoogleLogin = async () => {
     try {
       setError(null);
       await loginWithGoogle();
