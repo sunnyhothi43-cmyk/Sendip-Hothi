@@ -21,6 +21,7 @@
     "@capacitor/status-bar": "^6.0.0",
     "@google/genai": "^1.0.0",
     "@tailwindcss/vite": "^4.0.0",
+    "@vercel/speed-insights": "^2.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "clsx": "^2.1.1",
     "dotenv": "^16.4.0",

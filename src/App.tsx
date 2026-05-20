@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Search, Music, Settings, ArrowUp, ArrowDown, Play, Pause, RotateCcw, Minus, Plus, Home, X, Printer, LogIn, LogOut, Heart, Trash2, Sparkles, Info, Zap, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { fetchSongData, SongData, fetchRecommendations, searchSongs, fetchChordFingering } from './services/geminiService';
 import { transposeLine, parseChordSegments, getEasyKeyOffset, transposeChord } from './lib/musicUtils';
 import { cn } from './lib/utils';
@@ -2310,6 +2311,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+      <SpeedInsights />
     </div>
   );
 }
