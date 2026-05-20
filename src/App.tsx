@@ -748,21 +748,29 @@ export default function App() {
   };
 
   const handleGoogleLogin = async () => {
+  const handleGoogleLogin = async () => {
     try {
       setError(null);
       await loginWithGoogle();
       setIsLoginModalOpen(false);
     } catch (err: any) {
       if (err.code === 'auth/popup-closed-by-user') {
-        // Just clear the error or show a very subtle message if needed, 
-        // but don't log it as a prominent error
         setError(null); 
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        setError(null);
+      } else if (err.code === 'auth/popup-blocked') {
+        setError("Popup blocked. Please allow popups for this site or try again.");
+      } else if (err.code === 'auth/network-request-failed') {
+        setError("Network error. Check your connection and try again.");
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError("This domain is not authorized. Add your Vercel URL to Firebase Authentication settings.");
       } else {
         setError(err.message || "Failed to sign in");
         console.error("Login Error:", err);
       }
     }
   };
+
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
