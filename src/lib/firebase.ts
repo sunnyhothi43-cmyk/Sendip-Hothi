@@ -16,10 +16,24 @@ export const db = firebaseConfig.firestoreDatabaseId
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
+import { getRedirectResult } from 'firebase/auth';
+
 export async function loginWithGoogle() {
-  try { return (await signInWithPopup(auth, googleProvider)).user; }
-  catch (error: any) { if (error.code !== 'auth/popup-closed-by-user') console.error("Login failed:", error); throw error; }
+  try {
+    await signInWithRedirect(auth, googleProvider);
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      return result.user;
+    }
+    return null;
+  } catch (error: any) {
+    if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+      console.error("Login failed:", error);
+    }
+    throw error;
+  }
 }
+
 
 export async function loginAnonymously() {
   try { return (await signInAnonymously(auth)).user; }
