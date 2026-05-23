@@ -5,7 +5,7 @@ import { fetchSongData, SongData, fetchRecommendations, searchSongs, fetchChordF
 import { transposeLine, parseChordSegments, getEasyKeyOffset, transposeChord } from './lib/musicUtils';
 import { cn } from './lib/utils';
 import { PRELOADED_SONGS } from './lib/preloadedSongs';
-import { auth, loginWithGoogle, loginAnonymously, signUpWithEmail, loginWithEmail, logout, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { auth, loginWithGoogle, loginWithGoogleRedirect, handleRedirectResult, loginAnonymously, signUpWithEmail, loginWithEmail, logout, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query as fsQuery, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, orderBy, DocumentData, getDoc, setDoc, increment, updateDoc } from 'firebase/firestore';
 import { CHORD_LIBRARY, ChordPosition } from './lib/chordLibrary';
@@ -28,6 +28,21 @@ interface UserProfile {
   updatedAt: any;
 }
 
+const isSameSong = (s1: { title?: string; artist?: string } | null | undefined, s2: { title?: string; artist?: string } | null | undefined) => {
+  if (!s1 || !s2 || !s1.title || !s2.title || !s1.artist || !s2.artist) return false;
+  const cleanString = (str: string) => {
+    return str
+      .toLowerCase()
+      .replace(/\s+/g, ' ') // normalize spaces
+      .trim()
+      .replace(/\s*\([^)]*\)/g, '') // remove anything inside parentheses (e.g. (Acoustic), (Live))
+      .replace(/\s*-.*$/, '') // remove suffixes starting with dash (like "- Remastered")
+      .trim();
+  };
+  return cleanString(s1.title) === cleanString(s2.title) &&
+         cleanString(s1.artist) === cleanString(s2.artist);
+};
+
 export default function App() {
   const [query, setQuery] = useState('');
   const [song, setSong] = useState<SongData | null>(null);
@@ -45,16 +60,26 @@ export default function App() {
   
   const [keyOffset, setKeyOffset] = useState(0);
   const [currentTempo, setCurrentTempo] = useState(0);
-  const [scrollSpeed, setScrollSpeed] = useState(20);
+  const [scrollSpeed, setScrollSpeed] = useState(() => {
+    return Number(localStorage.getItem('pref_scroll_speed')) || 20;
+  });
   const [isScrolling, setIsScrolling] = useState(false);
-  const [fontSize, setFontSize] = useState(15); 
-  const [showStrummingPattern, setShowStrummingPattern] = useState(false);
+  const [fontSize, setFontSize] = useState(() => {
+    return Number(localStorage.getItem('pref_font_size')) || 15;
+  }); 
+  const [showStrummingPattern, setShowStrummingPattern] = useState(() => {
+    const saved = localStorage.getItem('pref_show_strumming');
+    return saved === null ? true : saved === 'true';
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const [isEasyMode, setIsEasyMode] = useState(false);
+  const [isEasyMode, setIsEasyMode] = useState(() => {
+    return localStorage.getItem('pref_easy_mode') === 'true';
+  });
   const [selectedChord, setSelectedChord] = useState<{ name: string; positions: ChordPosition[]; currentIndex: number } | null>(null);
   const [loadingChord, setLoadingChord] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isPreferencesLoaded, setIsPreferencesLoaded] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallReason, setPaywallReason] = useState<'favorites' | 'print'>('favorites');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -104,6 +129,86 @@ export default function App() {
 
     return () => unsubs();
   }, [user]);
+
+  // Load remote preferences when profile loads and sync them locally
+  useEffect(() => {
+    if (userProfile && (userProfile as any).preferences) {
+      const prefs = (userProfile as any).preferences;
+      if (typeof prefs.fontSize === 'number') {
+        setFontSize(prefs.fontSize);
+        localStorage.setItem('pref_font_size', String(prefs.fontSize));
+      }
+      if (typeof prefs.showStrummingPattern === 'boolean') {
+        setShowStrummingPattern(prefs.showStrummingPattern);
+        localStorage.setItem('pref_show_strumming', String(prefs.showStrummingPattern));
+      }
+      if (typeof prefs.isEasyMode === 'boolean') {
+        setIsEasyMode(prefs.isEasyMode);
+        localStorage.setItem('pref_easy_mode', String(prefs.isEasyMode));
+      }
+      if (typeof prefs.scrollSpeed === 'number') {
+        setScrollSpeed(prefs.scrollSpeed);
+        localStorage.setItem('pref_scroll_speed', String(prefs.scrollSpeed));
+      }
+      setIsPreferencesLoaded(true);
+    } else if (userProfile) {
+      // User has a profile but no preferences saved yet
+      setIsPreferencesLoaded(true);
+    } else if (!user) {
+      // Guest mode is ready immediately
+      setIsPreferencesLoaded(true);
+    }
+  }, [userProfile, user]);
+
+  // Reset preferences loaded status when user signs out
+  useEffect(() => {
+    if (!user) {
+      setIsPreferencesLoaded(false);
+    }
+  }, [user]);
+
+  // Automatically adjust scroll speed when a song is loaded or its tempo is adjusted,
+  // while still allowing the user to override/adjust the scroll speed manually.
+  useEffect(() => {
+    if (song && currentTempo > 0) {
+      // Calculate a scroll speed based on the song's tempo.
+      // 120 BPM normally maps well to ~24 scroll speed (tempo / 5).
+      // Let's clamp it between 5 and 100 to keep it safe.
+      const calculatedSpeed = Math.max(5, Math.min(100, Math.round(currentTempo / 5)));
+      setScrollSpeed(calculatedSpeed);
+    }
+  }, [song, currentTempo]);
+
+  // Save preferences to localStorage & Firestore when they change
+  useEffect(() => {
+    // Save to local storage immediately
+    localStorage.setItem('pref_font_size', String(fontSize));
+    localStorage.setItem('pref_show_strumming', String(showStrummingPattern));
+    localStorage.setItem('pref_easy_mode', String(isEasyMode));
+    localStorage.setItem('pref_scroll_speed', String(scrollSpeed));
+
+    // If user is logged in and remote preferences have synced initially, update Firestore on changes
+    if (user && userProfile && isPreferencesLoaded) {
+      const currentRemotePrefs = (userProfile as any).preferences || {};
+      const hasChanges = 
+        currentRemotePrefs.fontSize !== fontSize ||
+        currentRemotePrefs.showStrummingPattern !== showStrummingPattern ||
+        currentRemotePrefs.isEasyMode !== isEasyMode ||
+        currentRemotePrefs.scrollSpeed !== scrollSpeed;
+
+      if (hasChanges) {
+        updateDoc(doc(db, 'users', user.uid), {
+          preferences: {
+            fontSize,
+            showStrummingPattern,
+            isEasyMode,
+            scrollSpeed
+          },
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Failed to sync preferences to Firestore:", err));
+      }
+    }
+  }, [fontSize, showStrummingPattern, isEasyMode, scrollSpeed, user, userProfile, isPreferencesLoaded]);
 
   // Fetch stripe config status once
   useEffect(() => {
@@ -252,6 +357,29 @@ export default function App() {
     }
   };
 
+  const handleCancelMembership = async () => {
+    if (!user) return;
+    if (!window.confirm("Are you sure you want to cancel your Premium membership? You will lose access to unlimited song favorites and unlimited PDF/printing features.")) {
+      return;
+    }
+    
+    setIsProcessingPayment(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        isSubscribed: false,
+        subscriptionType: null,
+        renewalDate: null,
+        updatedAt: serverTimestamp()
+      });
+      alert("Your Premium membership has been cancelled successfully. You are now on the Free Version.");
+    } catch (err: any) {
+      console.error("Cancellation Error:", err);
+      setError(err.message || "Failed to cancel membership.");
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
   // Check for success URL parameter to simulate post-checkout fulfillment
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -364,7 +492,7 @@ export default function App() {
       try {
         const cacheRaw = localStorage.getItem('chord_guest_cache');
         const cache = cacheRaw ? JSON.parse(cacheRaw) : [];
-        const exists = cache.some((s: any) => s.title === song.title && s.artist === song.artist);
+        const exists = cache.some((s: any) => isSameSong(s, song));
         if (!exists) {
           const newCache = [song, ...cache].slice(0, 20);
           localStorage.setItem('chord_guest_cache', JSON.stringify(newCache));
@@ -507,7 +635,7 @@ export default function App() {
         try {
           const cacheRaw = localStorage.getItem('chord_guest_cache');
           const cache = cacheRaw ? JSON.parse(cacheRaw) : [];
-          const exists = cache.some((s: any) => s.title === data.title && s.artist === data.artist);
+          const exists = cache.some((s: any) => isSameSong(s, data));
           if (!exists) {
             const newCache = [data, ...cache].slice(0, 30);
             localStorage.setItem('chord_guest_cache', JSON.stringify(newCache));
@@ -547,6 +675,15 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Handle redirect sign-in result when returning from Google's sign-in page (essential for frames and mobile browsers)
+    handleRedirectResult().then((userResult) => {
+      if (userResult) {
+        console.log("Successfully logged in via redirect", userResult);
+      }
+    }).catch(err => {
+      console.error("Error processing redirect sign in:", err);
+    });
+
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
     });
@@ -598,14 +735,8 @@ export default function App() {
       });
       // Ensure we have unique suggestions that aren't already in library or preloaded
       const filtered = sorted.filter(rec => {
-        const inLibrary = displayLibrary.some(l => 
-          l.title.toLowerCase().trim() === rec.title.toLowerCase().trim() &&
-          l.artist.toLowerCase().trim() === rec.artist.toLowerCase().trim()
-        );
-        const isPreloaded = PRELOADED_SONGS.some(p => 
-          p.title.toLowerCase().trim() === rec.title.toLowerCase().trim() &&
-          p.artist.toLowerCase().trim() === rec.artist.toLowerCase().trim()
-        );
+        const inLibrary = displayLibrary.some(l => isSameSong(l, rec));
+        const isPreloaded = PRELOADED_SONGS.some(p => isSameSong(p, rec));
         return !inLibrary && !isPreloaded;
       });
       setRecommendations(filtered);
@@ -620,7 +751,7 @@ export default function App() {
     if (!songToSave) return;
     
     // Check if already in favorites
-    const isFav = displayLibrary.some(l => l.title === songToSave.title && l.artist === songToSave.artist);
+    const isFav = displayLibrary.some(l => isSameSong(l, songToSave));
     if (isFav) return;
 
     if (!checkLimit('favorites')) return;
@@ -642,7 +773,7 @@ export default function App() {
         artist: data.artist,
         originalKey: data.originalKey || "C",
         suggestedTempo: data.suggestedTempo || 120,
-        strummingPattern: data.strummingPattern || "",
+        strummingPattern: data.strummingPattern || "D-D-DU-DU",
         sections: data.sections || [],
       };
 
@@ -677,7 +808,7 @@ export default function App() {
   };
 
   const handleUnsaveSong = async (artist: string, title: string) => {
-    const item = displayLibrary.find(l => l.artist === artist && l.title === title);
+    const item = displayLibrary.find(l => isSameSong(l, { artist, title }));
     if (item) {
       handleDeleteSong(item.id);
     }
@@ -754,22 +885,34 @@ export default function App() {
       setIsLoginModalOpen(false);
     } catch (err: any) {
       if (err.code === 'auth/popup-closed-by-user') {
+        // Just clear the error
         setError(null); 
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        setError(null);
-      } else if (err.code === 'auth/popup-blocked') {
-        setError("Popup blocked. Please allow popups for this site or try again.");
-      } else if (err.code === 'auth/network-request-failed') {
-        setError("Network error. Check your connection and try again.");
-      } else if (err.code === 'auth/unauthorized-domain') {
-        setError("This domain is not authorized. Add your Vercel URL to Firebase Authentication settings.");
+      } else if (
+        err.code === 'auth/popup-blocked' || 
+        err.code === 'auth/cancelled-popup-request' ||
+        err.message?.includes('popup') || 
+        err.code?.includes('iframe')
+      ) {
+        // Fallback to redirect sign-in for iframe/embedded previews or mobile browsers with popup blockers
+        console.log("Popup blocked or failed, falling back to redirect...");
+        try {
+          await loginWithGoogleRedirect();
+        } catch (redirectErr: any) {
+          setError(redirectErr.message || "Failed to initiate redirect sign in.");
+          console.error("Redirect fallback error:", redirectErr);
+        }
       } else {
-        setError(err.message || "Failed to sign in");
-        console.error("Login Error:", err);
+        // For other errors, log and try redirect fallback as a final option
+        console.warn("Popup login failed, attempting browser redirect fallback:", err);
+        try {
+          await loginWithGoogleRedirect();
+        } catch (redirectErr: any) {
+          setError(err.message || "Failed to sign in.");
+          console.error("Redirect fallback error:", redirectErr);
+        }
       }
     }
   };
-
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1212,7 +1355,7 @@ export default function App() {
         {loading && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="w-8 h-8 border-2 border-amber-500/10 border-t-amber-500 rounded-full animate-spin" />
-            <p className="text-[10px] uppercase tracking-[3px] text-neutral-600">Retrieving from AI Library</p>
+            <p className="text-[10px] uppercase tracking-[3px] text-neutral-600">Retrieving lyrics and guitar chords</p>
           </div>
         )}
 
@@ -1272,7 +1415,7 @@ export default function App() {
                 </div>
                 <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg overflow-hidden">
                   {searchResults.map((res, idx) => {
-                    const isFav = displayLibrary.some(l => l.title === res.title && l.artist === res.artist);
+                    const isFav = displayLibrary.some(l => isSameSong(l, res));
                     const resKey = `search-${res.artist}-${res.title}-${idx}`;
                     return (
                       <div 
@@ -1384,10 +1527,7 @@ export default function App() {
                 {/* AI Recommendations */}
                 {recommendations && recommendations.length > 0 ? (
                   recommendations
-                    .filter(rec => !displayLibrary.some(l => 
-                      l.title.toLowerCase().trim() === rec.title.toLowerCase().trim() &&
-                      l.artist.toLowerCase().trim() === rec.artist.toLowerCase().trim()
-                    ))
+                    .filter(rec => !displayLibrary.some(l => isSameSong(l, rec)))
                     .map((rec, idx) => {
                     const recKey = `rec-${rec.artist}-${rec.title}-${idx}`;
                     return (
@@ -1428,10 +1568,7 @@ export default function App() {
 
                 {/* Preloaded Classics */}
                 {PRELOADED_SONGS
-                  .filter(ps => !displayLibrary.some(lib => 
-                    lib.title.toLowerCase().trim() === ps.title.toLowerCase().trim() &&
-                    lib.artist.toLowerCase().trim() === ps.artist.toLowerCase().trim()
-                  ))
+                  .filter(ps => !displayLibrary.some(lib => isSameSong(lib, ps)))
                   .sort((a, b) => {
                     const artistComp = a.artist.localeCompare(b.artist);
                     if (artistComp !== 0) return artistComp;
@@ -1536,19 +1673,19 @@ export default function App() {
                   <span className="text-xs font-black text-red-500 uppercase tracking-widest">{song.artist}</span>
                   <button 
                     onClick={() => {
-                      const isFav = displayLibrary.some(s => s.title === song.title && s.artist === song.artist);
+                      const isFav = displayLibrary.some(s => isSameSong(s, song));
                       isFav ? handleUnsaveSong(song.artist, song.title) : handleSaveSong(song);
                     }}
                     disabled={isSaving}
                     className={cn(
                       "p-1.5 rounded-full transition-all shadow-lg print:hidden",
-                      displayLibrary.some(s => s.title === song.title && s.artist === song.artist) 
+                      displayLibrary.some(s => isSameSong(s, song)) 
                         ? "bg-amber-500 text-black" 
                         : "bg-neutral-800 text-neutral-400 hover:text-amber-500"
                     )}
-                    title={displayLibrary.some(s => s.title === song.title && s.artist === song.artist) ? "Remove from Favorites" : "Add to Favorites"}
+                    title={displayLibrary.some(s => isSameSong(s, song)) ? "Remove from Favorites" : "Add to Favorites"}
                   >
-                    <Heart className={cn("w-4 h-4", displayLibrary.some(s => s.title === song.title && s.artist === song.artist) && "fill-current")} />
+                    <Heart className={cn("w-4 h-4", displayLibrary.some(s => isSameSong(s, song)) && "fill-current")} />
                   </button>
 
                   <button 
@@ -1659,7 +1796,7 @@ export default function App() {
             </div>
 
             {/* Strumming Pattern Section */}
-            {showStrummingPattern && song.strummingPattern && (
+            {showStrummingPattern && (
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1668,7 +1805,7 @@ export default function App() {
                 <div className="flex flex-col">
                   <span className="text-[7px] font-black text-amber-500/40 uppercase tracking-widest leading-none mb-1 print:text-black/50">Suggested Strumming Pattern</span>
                   <span className="text-sm font-black text-amber-500 tracking-[0.4em] font-mono leading-none print:text-black print:text-[10pt]">
-                    {song.strummingPattern}
+                    {song.strummingPattern || "D-D-DU-DU"}
                   </span>
                 </div>
               </motion.div>
@@ -1881,13 +2018,24 @@ export default function App() {
 
                   <div className="flex flex-col gap-2">
                     {userProfile?.isSubscribed ? (
-                      <button 
-                        onClick={handleCreatePortalSession}
-                        disabled={isProcessingPayment}
-                        className="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-amber-500 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all border border-neutral-700 active:scale-[0.98] cursor-pointer"
-                      >
-                        Manage Billing & Cancel
-                      </button>
+                      <>
+                        <button 
+                          onClick={handleCreatePortalSession}
+                          disabled={isProcessingPayment}
+                          className="w-full py-2 bg-neutral-800 hover:bg-neutral-700 text-amber-500 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all border border-neutral-700 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Settings className="w-3 h-3" />
+                          Billing Portal (Stripe)
+                        </button>
+                        <button 
+                          onClick={handleCancelMembership}
+                          disabled={isProcessingPayment}
+                          className="w-full py-2 bg-red-950/40 hover:bg-red-950/60 text-red-400 hover:text-red-350 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all border border-red-900/40 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <X className="w-3 h-3" />
+                          Cancel Membership Anytime
+                        </button>
+                      </>
                     ) : (
                       <button 
                         onClick={() => setShowPaywall(true)}
@@ -1899,17 +2047,19 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Stats Section */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mb-1">Favorites</p>
-                    <p className="text-lg font-black text-white">{displayLibrary.length}/5</p>
+                {/* Stats Section - only shown for guests/unsubscribed users */}
+                {(!userProfile || !userProfile.isSubscribed) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mb-1">Favorites</p>
+                      <p className="text-lg font-black text-white">{displayLibrary.length}/5</p>
+                    </div>
+                    <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mb-1">Prints</p>
+                      <p className="text-lg font-black text-white">{userProfile?.printCount || 0}/5</p>
+                    </div>
                   </div>
-                  <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-neutral-500 mb-1">Prints</p>
-                    <p className="text-lg font-black text-white">{userProfile?.printCount || 0}/5</p>
-                  </div>
-                </div>
+                )}
 
                 {/* Display Section */}
                 <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-4">
@@ -2302,14 +2452,27 @@ export default function App() {
                   <p className="text-[9px] text-neutral-600 uppercase tracking-widest mb-4">Secure payments by Stripe. Cancel anytime.</p>
                   
                   {user && (
-                    <button 
-                      onClick={handleCreatePortalSession}
-                      disabled={isProcessingPayment}
-                      className="text-[9px] font-black uppercase tracking-widest text-neutral-700 hover:text-amber-500 transition-colors flex items-center gap-1 mx-auto"
-                    >
-                      <Settings className="w-2.5 h-2.5" />
-                      Manage Subscription & Billing
-                    </button>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                      <button 
+                        onClick={handleCreatePortalSession}
+                        disabled={isProcessingPayment}
+                        className="text-[9px] font-black uppercase tracking-widest text-neutral-500 hover:text-amber-500 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Settings className="w-2.5 h-2.5" />
+                        Manage via Stripe
+                      </button>
+                      
+                      {userProfile?.isSubscribed && (
+                        <button 
+                          onClick={handleCancelMembership}
+                          disabled={isProcessingPayment}
+                          className="text-[9px] font-black uppercase tracking-widest text-red-500 hover:text-red-400 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                          Cancel Membership Anytime
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

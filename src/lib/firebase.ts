@@ -1,12 +1,11 @@
-import { getRedirectResult } from 'firebase/auth';
 import { initializeApp } from 'firebase/app';
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
   signInWithRedirect,
   getRedirectResult,
-  signOut,
+  signOut, 
   signInAnonymously,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -16,30 +15,11 @@ import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-
-export const db = firebaseConfig.firestoreDatabaseId
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
-
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// MOBILE-FRIENDLY: Uses redirect instead of popup
 export async function loginWithGoogle() {
-  try {
-    await signInWithRedirect(auth, googleProvider);
-    const result = await getRedirectResult(auth);
-    return result?.user ?? null;
-  } catch (error: any) {
-    if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
-      console.error("Login failed:", error);
-    }
-    throw error;
-  }
-}
-
-// Keep popup as fallback for desktop (optional)
-export async function loginWithGooglePopup() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
@@ -51,6 +31,25 @@ export async function loginWithGooglePopup() {
   }
 }
 
+// Support sign in with redirect (useful for frames, in-app browsers, and Safari/Chrome on mobile)
+export async function loginWithGoogleRedirect() {
+  await signInWithRedirect(auth, googleProvider);
+}
+
+// Handle redirect result on app load
+export async function handleRedirectResult() {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      console.log('Redirect signed in:', result.user);
+      return result.user;
+    }
+  } catch (error) {
+    console.error('Redirect sign-in error:', error);
+  }
+  return null;
+}
+ 
 export async function loginAnonymously() {
   try {
     const result = await signInAnonymously(auth);
@@ -76,6 +75,7 @@ export async function logout() {
   await signOut(auth);
 }
 
+// Connection test as required by instructions
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
@@ -111,26 +111,26 @@ export interface FirestoreErrorInfo {
       providerId?: string | null;
       email?: string | null;
     }[];
-  };
+  }
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid ?? null,
-      email: auth.currentUser?.email ?? null,
-      emailVerified: auth.currentUser?.emailVerified ?? null,
-      isAnonymous: auth.currentUser?.isAnonymous ?? null,
-      tenantId: auth.currentUser?.tenantId ?? null,
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
       providerInfo: auth.currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         email: provider.email,
-      })) ?? []
+      })) || []
     },
     operationType,
     path
-  };
+  }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
