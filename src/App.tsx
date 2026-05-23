@@ -1770,6 +1770,21 @@ export default function App() {
                   >
                     Easy
                   </button>
+
+                  <button 
+                    onClick={() => {
+                      setShowStrummingPattern(prev => !prev);
+                    }}
+                    className={cn(
+                      "text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-lg border transition-all h-full flex items-center justify-center gap-1",
+                      showStrummingPattern 
+                        ? "bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]" 
+                        : "bg-neutral-900 border-[#333] text-neutral-500 hover:text-amber-500"
+                    )}
+                    title="Toggle Suggested Strumming Pattern"
+                  >
+                    Strum
+                  </button>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[8px] font-black text-neutral-600 uppercase tracking-[0.2em]">Original: {song.originalKey}</span>
@@ -1800,13 +1815,55 @@ export default function App() {
               <motion.div 
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-3 bg-amber-500/5 border border-amber-500/10 px-3 py-1.5 rounded w-fit mb-4 shadow-sm print:flex print:border-none print:shadow-none print:p-0 print:mb-2 print:mt-1"
+                className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 bg-amber-500/5 border border-amber-500/10 px-4 py-2.5 rounded-xl w-fit mb-4 shadow-sm print:flex print:flex-col print:border-none print:shadow-none print:p-0 print:mb-2 print:mt-1"
               >
-                <div className="flex flex-col">
-                  <span className="text-[7px] font-black text-amber-500/40 uppercase tracking-widest leading-none mb-1 print:text-black/50">Suggested Strumming Pattern</span>
-                  <span className="text-sm font-black text-amber-500 tracking-[0.4em] font-mono leading-none print:text-black print:text-[10pt]">
-                    {song.strummingPattern || "D-D-DU-DU"}
+                <div className="flex flex-col select-none shrink-0 sm:border-r sm:border-amber-500/10 sm:pr-4 print:border-none print:p-0">
+                  <span className="text-[7px] font-black text-amber-500/40 uppercase tracking-widest leading-none mb-1.5 print:text-black/50">Suggested Strumming Pattern</span>
+                  <span className="text-xs font-black text-amber-500 tracking-[0.2em] font-mono leading-none print:text-black print:text-[10pt]">
+                    {song.strummingPattern && song.strummingPattern.trim() !== "" && song.strummingPattern.toUpperCase() !== "N/A" ? song.strummingPattern : "D-D-DU-DU"}
                   </span>
+                </div>
+
+                {/* Visual Arrow Blocks */}
+                <div className="flex items-center gap-1 print:hidden select-none animate-fade-in">
+                  {(song.strummingPattern && song.strummingPattern.trim() !== "" && song.strummingPattern.toUpperCase() !== "N/A" ? song.strummingPattern : "D-D-DU-DU").split('').map((char, idx) => {
+                    const isD = char.toUpperCase() === 'D';
+                    const isU = char.toUpperCase() === 'U';
+                    
+                    if (isD) {
+                      return (
+                        <div 
+                          key={`strum-${idx}`}
+                          className="flex flex-col items-center justify-center w-6 h-9 bg-amber-500 text-black font-black rounded border border-amber-400 shadow-sm"
+                          title="Down Strum"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5 stroke-[3.5]" />
+                          <span className="text-[8px] leading-none mt-0.5 font-bold">D</span>
+                        </div>
+                      );
+                    } else if (isU) {
+                      return (
+                        <div 
+                          key={`strum-${idx}`}
+                          className="flex flex-col items-center justify-center w-6 h-9 bg-amber-500 text-black font-black rounded border border-amber-400 shadow-sm"
+                          title="Up Strum"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5 stroke-[3.5]" />
+                          <span className="text-[8px] leading-none mt-0.5 font-bold">U</span>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div 
+                          key={`strum-${idx}`}
+                          className="flex flex-col items-center justify-center w-3 h-9 bg-[#111] border border-neutral-800 rounded"
+                          title="Spacer"
+                        >
+                          <div className="w-1 h-1 bg-neutral-700 rounded-full" />
+                        </div>
+                      );
+                    }
+                  })}
                 </div>
               </motion.div>
             )}
