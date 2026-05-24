@@ -1724,24 +1724,24 @@ export default function App() {
                 </div>
               </div>
               
-              <div className="flex flex-col items-start md:items-end gap-2 shrink-0 select-none">
-                {/* Row 1: Key & Tempo controls */}
-                <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-col items-start md:items-end gap-2 shrink-0 select-none w-full md:w-auto">
+                {/* Unified controls board: Key, Tempo, Easy Chords, and Strumming */}
+                <div className="grid grid-cols-2 md:flex md:items-center gap-2 w-full">
                   {/* Transpose Controls (Song Key) */}
-                  <div className="flex items-center bg-neutral-900 border border-[#333] rounded-lg p-0.5 shadow-sm">
+                  <div className="flex items-center justify-between bg-neutral-900 border border-[#333] rounded-lg p-0.5 shadow-sm h-[40px] md:h-[38px]">
                     <button 
                       onClick={() => {
                         setKeyOffset(prev => prev - 1);
                         setIsEasyMode(false);
                       }}
-                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer"
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer flex items-center justify-center"
                       title="Transpose Down"
                     >
-                      <Minus className="w-3 h-3" />
+                      <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <div className="px-2.5 py-0.5 flex flex-col items-center min-w-[65px] border-x border-[#333]">
-                      <span className="text-[7px] font-black text-amber-500/60 uppercase tracking-tighter leading-none mb-0.5">Song Key</span>
-                      <span className="text-[10px] font-bold text-amber-500 leading-none">
+                    <div className="flex flex-col items-center min-w-[58px] border-x border-[#333] px-1">
+                      <span className="text-[7.5px] font-black text-amber-500/60 uppercase tracking-tighter leading-none mb-0.5">Song Key</span>
+                      <span className="text-[10.5px] font-bold text-amber-500 leading-none">
                         {transposeChord(song.originalKey, keyOffset)}
                       </span>
                     </div>
@@ -1750,40 +1750,37 @@ export default function App() {
                         setKeyOffset(prev => prev + 1);
                         setIsEasyMode(false);
                       }}
-                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer"
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer flex items-center justify-center"
                       title="Transpose Up"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
                   {/* Tempo Controls */}
-                  <div className="flex items-center bg-neutral-900 border border-[#333] rounded-lg p-0.5 shadow-sm">
+                  <div className="flex items-center justify-between bg-neutral-900 border border-[#333] rounded-lg p-0.5 shadow-sm h-[40px] md:h-[38px]">
                     <button 
                       onClick={() => setCurrentTempo(prev => Math.max(40, prev - 5))}
-                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer"
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer flex items-center justify-center"
                       title="Slower"
                     >
-                      <Minus className="w-3 h-3" />
+                      <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <div className="px-2.5 py-0.5 flex flex-col items-center min-w-[65px] border-x border-[#333]">
-                      <span className="text-[7px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Tempo</span>
-                      <span className="text-[10px] font-bold text-neutral-200 leading-none font-mono">
+                    <div className="flex flex-col items-center min-w-[58px] border-x border-[#333] px-1">
+                      <span className="text-[7.5px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Tempo</span>
+                      <span className="text-[10.5px] font-bold text-neutral-200 leading-none font-mono">
                         {currentTempo}
                       </span>
                     </div>
                     <button 
                       onClick={() => setCurrentTempo(prev => Math.min(250, prev + 5))}
-                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer"
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer flex items-center justify-center"
                       title="Faster"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                </div>
 
-                {/* Row 2: Easy Chords & Strumming toggles like the Easy button next to it */}
-                <div className="flex items-center gap-2 w-full md:justify-end mt-1.5 select-none">
                   {/* Easy Chords Button */}
                   <button 
                     onClick={() => {
@@ -1792,14 +1789,14 @@ export default function App() {
                       if (song) setKeyOffset(next ? getEasyKeyOffset(song.sections) : 0);
                     }}
                     className={cn(
-                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1 px-2.5 shadow-sm min-w-[95px] transition-all cursor-pointer text-left md:flex-initial flex-1",
+                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1.5 px-2.5 shadow-sm transition-all cursor-pointer text-left h-[40px] md:h-[38px] md:w-[98px]",
                       isEasyMode ? "border-amber-500 bg-amber-500/5 shadow-[0_0_10px_rgba(245,158,11,0.15)]" : "border-[#333] hover:border-neutral-700"
                     )}
                     title="Toggle Easy Chords mode"
                   >
                     <div className="flex flex-col">
-                      <span className="text-[7px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Easy Chords</span>
-                      <span className={cn("text-[9px] font-black leading-none uppercase", isEasyMode ? "text-amber-500" : "text-neutral-400")}>
+                      <span className="text-[7.5px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Easy Chords</span>
+                      <span className={cn("text-[9.5px] font-black leading-none uppercase", isEasyMode ? "text-amber-500" : "text-neutral-400")}>
                         {isEasyMode ? "ON" : "OFF"}
                       </span>
                     </div>
@@ -1815,14 +1812,14 @@ export default function App() {
                       setShowStrummingPattern(prev => !prev);
                     }}
                     className={cn(
-                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1 px-2.5 shadow-sm min-w-[95px] transition-all cursor-pointer text-left md:flex-initial flex-1",
+                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1.5 px-2.5 shadow-sm transition-all cursor-pointer text-left h-[40px] md:h-[38px] md:w-[98px]",
                       showStrummingPattern ? "border-amber-500 bg-amber-500/5 shadow-[0_0_10px_rgba(245,158,11,0.15)]" : "border-[#333] hover:border-neutral-700"
                     )}
                     title="Toggle Suggested Strumming Pattern"
                   >
                     <div className="flex flex-col">
-                      <span className="text-[7px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Strumming</span>
-                      <span className={cn("text-[9px] font-black leading-none uppercase", showStrummingPattern ? "text-amber-500" : "text-neutral-400")}>
+                      <span className="text-[7.5px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Strumming</span>
+                      <span className={cn("text-[9.5px] font-black leading-none uppercase", showStrummingPattern ? "text-amber-500" : "text-neutral-400")}>
                         {showStrummingPattern ? "ON" : "OFF"}
                       </span>
                     </div>
@@ -1833,7 +1830,7 @@ export default function App() {
                   </button>
                 </div>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 justify-between md:justify-end w-full mt-0.5 px-0.5">
                   <span className="text-[8px] font-black text-neutral-600 uppercase tracking-[0.2em]">Original: {song.originalKey}</span>
                   <span className="text-[8px] font-black text-neutral-600 uppercase tracking-[0.2em]">{song.suggestedTempo} BPM</span>
                 </div>
