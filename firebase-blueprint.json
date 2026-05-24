@@ -46,6 +46,20 @@
         "userId": { "type": "string" }
       },
       "required": ["title", "artist", "originalKey", "suggestedTempo", "sections", "userId", "savedAt"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "User feedback messages and bug reports",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "message": { "type": "string" },
+        "category": { "type": "string", "enum": ["bug", "feature_request", "song_request", "general"] },
+        "timestamp": { "type": "object", "description": "Firestore Timestamp" },
+        "status": { "type": "string", "enum": ["open", "resolved", "in_progress"] }
+      },
+      "required": ["userId", "message", "category", "timestamp", "status"]
     }
   },
   "firestore": {
@@ -56,6 +70,10 @@
     "users/{userId}/songs/{songId}": {
       "schema": "Song",
       "description": "User's personal song collection"
+    },
+    "feedbacks/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "App feedback submitted by users"
     }
   }
 }

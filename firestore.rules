@@ -59,6 +59,18 @@ service cloud.firestore {
              (!data.keys().hasAny(['preferences']) || (data.preferences is map));
     }
 
+    // Feedback Validation Helper
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['userId', 'message', 'category', 'timestamp', 'status']) &&
+             data.keys().size() <= 6 &&
+             (!data.keys().hasAny(['userEmail']) || (data.userEmail is string && data.userEmail.size() <= 200)) &&
+             data.userId == request.auth.uid &&
+             data.message is string && data.message.size() <= 2000 &&
+             data.category is string && (data.category == 'bug' || data.category == 'feature_request' || data.category == 'song_request' || data.category == 'general') &&
+             data.status is string && (data.status == 'open' || data.status == 'resolved' || data.status == 'in_progress') &&
+             data.timestamp is timestamp;
+    }
+
     // 1. User Root - Strict isolation of user data
     match /users/{userId} {
       allow get: if isSignedIn() && userId == request.auth.uid;
@@ -107,6 +119,20 @@ service cloud.firestore {
                         
         allow delete: if isSignedIn() && userId == request.auth.uid;
       }
+    }
+
+    // 2. Feedbacks Collection
+    match /feedbacks/{feedbackId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && isAdmin(); // Only admins can list all feedbacks
+      
+      allow create: if isSignedIn() && 
+                      isValidId(feedbackId) && 
+                      isValidFeedback(incoming()) && 
+                      incoming().status == 'open' &&
+                      incoming().timestamp == request.time;
+                      
+      allow update, delete: if isSignedIn() && isAdmin(); // Only admins can manage feedbacks
     }
   }
 }

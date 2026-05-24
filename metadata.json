@@ -2,5 +2,7 @@
   "name": "Chordstream",
   "description": "A hands-free guitar songbook with auto-scrolling, key transposition, and precise chord placement above lyrics.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

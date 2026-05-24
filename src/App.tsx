@@ -10,6 +10,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query as fsQuery, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, orderBy, DocumentData, getDoc, setDoc, increment, updateDoc } from 'firebase/firestore';
 import { CHORD_LIBRARY, ChordPosition } from './lib/chordLibrary';
 import { ChordDiagram } from './components/ChordDiagram';
+import { FeedbackAssistant } from './components/FeedbackAssistant';
 import firebaseConfig from './firebase-applet-config.json';
 
 interface LibrarySong extends SongData {
@@ -76,6 +77,18 @@ export default function App() {
   const [isEasyMode, setIsEasyMode] = useState(() => {
     return localStorage.getItem('pref_easy_mode') === 'true';
   });
+
+  const setSongWithStrumming = (s: SongData | null) => {
+    if (s) {
+      const hasStrum = s.strummingPattern && s.strummingPattern.trim() !== "" && s.strummingPattern.toUpperCase() !== "N/A";
+      setSong({
+        ...s,
+        strummingPattern: hasStrum ? s.strummingPattern : "D-D-DU-DU"
+      });
+    } else {
+      setSong(null);
+    }
+  };
   const [selectedChord, setSelectedChord] = useState<{ name: string; positions: ChordPosition[]; currentIndex: number } | null>(null);
   const [loadingChord, setLoadingChord] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -120,6 +133,12 @@ export default function App() {
           printCount: 0,
           isSubscribed: isAdmin, // Admins start as subscribed
           subscriptionType: isAdmin ? 'lifetime' : null,
+          preferences: {
+            fontSize: fontSize || 15,
+            showStrummingPattern: true,
+            isEasyMode: isEasyMode || false,
+            scrollSpeed: scrollSpeed || 20
+          },
           updatedAt: serverTimestamp()
         };
         setDoc(doc(db, 'users', user.uid), initialProfile);
@@ -606,7 +625,7 @@ export default function App() {
     }
 
     if (cachedSong && cachedSong.sections && cachedSong.sections.length > 0) {
-      setSong(cachedSong);
+      setSongWithStrumming(cachedSong);
       const initialOffset = isEasyMode ? getEasyKeyOffset(cachedSong.sections) : 0;
       setKeyOffset(initialOffset);
       setCurrentTempo(cachedSong.suggestedTempo);
@@ -623,7 +642,7 @@ export default function App() {
     try {
       if (isSpecific) {
         const data = await fetchSongData(searchQuery);
-        setSong(data);
+        setSongWithStrumming(data);
         const initialOffset = isEasyMode ? getEasyKeyOffset(data.sections) : 0;
         setKeyOffset(initialOffset);
         setCurrentTempo(data.suggestedTempo);
@@ -653,13 +672,13 @@ export default function App() {
             return a.title.localeCompare(b.title);
           });
           setSearchResults(sortedResults);
-          setSong(null); 
+          setSongWithStrumming(null); 
           window.scrollTo(0, 0);
         } else {
           // If search yielded nothing, try a direct fetch as a hail mary
           const data = await fetchSongData(searchQuery);
           if (data && data.sections && data.sections.length > 0) {
-            setSong(data);
+            setSongWithStrumming(data);
             setSearchResults([]);
           } else {
             setError("No results found. Try a different search!");
@@ -828,7 +847,7 @@ export default function App() {
 
   const selectPreloaded = (preloaded: SongData) => {
     if (!preloaded || !preloaded.sections) return;
-    setSong(preloaded);
+    setSongWithStrumming(preloaded);
     const initialOffset = isEasyMode ? getEasyKeyOffset(preloaded.sections) : 0;
     setKeyOffset(initialOffset);
     setCurrentTempo(preloaded.suggestedTempo || 100);
@@ -838,7 +857,7 @@ export default function App() {
   };
 
   const goHome = () => {
-    setSong(null);
+    setSongWithStrumming(null);
     setSearchResults([]);
     setQuery('');
     setError(null);
@@ -942,6 +961,12 @@ export default function App() {
             displayName: manualLoginData.name,
             email: email,
             country: manualLoginData.country,
+            preferences: {
+              fontSize: fontSize || 15,
+              showStrummingPattern: true,
+              isEasyMode: isEasyMode || false,
+              scrollSpeed: scrollSpeed || 20
+            },
             updatedAt: serverTimestamp()
           });
         }
@@ -1666,7 +1691,7 @@ export default function App() {
               })()
             )}
           >
-            <header className="flex justify-between items-center border-b border-[#222] pb-4 print:pb-1 print:mb-1">
+            <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#222] pb-4 print:pb-1 print:mb-1">
               <div className="flex items-baseline gap-3 flex-wrap">
                 <h2 className="text-2xl font-black text-white print:text-black uppercase italic">{song.title}</h2>
                 <div className="flex items-center gap-2">
@@ -1698,22 +1723,24 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              <div className="text-right flex flex-col items-end gap-2">
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {/* Transpose Controls */}
+              
+              <div className="flex flex-col items-start md:items-end gap-2 shrink-0 select-none">
+                {/* Row 1: Key & Tempo controls */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Transpose Controls (Song Key) */}
                   <div className="flex items-center bg-neutral-900 border border-[#333] rounded-lg p-0.5 shadow-sm">
                     <button 
                       onClick={() => {
                         setKeyOffset(prev => prev - 1);
                         setIsEasyMode(false);
                       }}
-                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500"
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer"
                       title="Transpose Down"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    <div className="px-2 py-0.5 flex flex-col items-center min-w-[50px] border-x border-[#333]">
-                      <span className="text-[7px] font-black text-amber-500/50 uppercase tracking-tighter leading-none mb-0.5">Key</span>
+                    <div className="px-2.5 py-0.5 flex flex-col items-center min-w-[65px] border-x border-[#333]">
+                      <span className="text-[7px] font-black text-amber-500/60 uppercase tracking-tighter leading-none mb-0.5">Song Key</span>
                       <span className="text-[10px] font-bold text-amber-500 leading-none">
                         {transposeChord(song.originalKey, keyOffset)}
                       </span>
@@ -1723,7 +1750,7 @@ export default function App() {
                         setKeyOffset(prev => prev + 1);
                         setIsEasyMode(false);
                       }}
-                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500"
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer"
                       title="Transpose Up"
                     >
                       <Plus className="w-3 h-3" />
@@ -1734,12 +1761,12 @@ export default function App() {
                   <div className="flex items-center bg-neutral-900 border border-[#333] rounded-lg p-0.5 shadow-sm">
                     <button 
                       onClick={() => setCurrentTempo(prev => Math.max(40, prev - 5))}
-                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500"
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer"
                       title="Slower"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    <div className="px-2 py-0.5 flex flex-col items-center min-w-[50px] border-x border-[#333]">
+                    <div className="px-2.5 py-0.5 flex flex-col items-center min-w-[65px] border-x border-[#333]">
                       <span className="text-[7px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Tempo</span>
                       <span className="text-[10px] font-bold text-neutral-200 leading-none font-mono">
                         {currentTempo}
@@ -1747,13 +1774,17 @@ export default function App() {
                     </div>
                     <button 
                       onClick={() => setCurrentTempo(prev => Math.min(250, prev + 5))}
-                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500"
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer"
                       title="Faster"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
                   </div>
+                </div>
 
+                {/* Row 2: Easy Chords & Strumming toggles like the Easy button next to it */}
+                <div className="flex items-center gap-2 w-full md:justify-end mt-1.5 select-none">
+                  {/* Easy Chords Button */}
                   <button 
                     onClick={() => {
                       const next = !isEasyMode;
@@ -1761,31 +1792,47 @@ export default function App() {
                       if (song) setKeyOffset(next ? getEasyKeyOffset(song.sections) : 0);
                     }}
                     className={cn(
-                      "text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-lg border transition-all h-full flex items-center justify-center",
-                      isEasyMode 
-                        ? "bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]" 
-                        : "bg-neutral-900 border-[#333] text-neutral-500 hover:text-amber-500"
+                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1 px-2.5 shadow-sm min-w-[95px] transition-all cursor-pointer text-left md:flex-initial flex-1",
+                      isEasyMode ? "border-amber-500 bg-amber-500/5 shadow-[0_0_10px_rgba(245,158,11,0.15)]" : "border-[#333] hover:border-neutral-700"
                     )}
-                    title="Translate to easiest key"
+                    title="Toggle Easy Chords mode"
                   >
-                    Easy
+                    <div className="flex flex-col">
+                      <span className="text-[7px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Easy Chords</span>
+                      <span className={cn("text-[9px] font-black leading-none uppercase", isEasyMode ? "text-amber-500" : "text-neutral-400")}>
+                        {isEasyMode ? "ON" : "OFF"}
+                      </span>
+                    </div>
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full ml-1.5 shrink-0",
+                      isEasyMode ? "bg-amber-500 animate-pulse" : "bg-neutral-700"
+                    )} />
                   </button>
 
+                  {/* Strumming Pattern Button */}
                   <button 
                     onClick={() => {
                       setShowStrummingPattern(prev => !prev);
                     }}
                     className={cn(
-                      "text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-lg border transition-all h-full flex items-center justify-center gap-1",
-                      showStrummingPattern 
-                        ? "bg-amber-500 border-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]" 
-                        : "bg-neutral-900 border-[#333] text-neutral-500 hover:text-amber-500"
+                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1 px-2.5 shadow-sm min-w-[95px] transition-all cursor-pointer text-left md:flex-initial flex-1",
+                      showStrummingPattern ? "border-amber-500 bg-amber-500/5 shadow-[0_0_10px_rgba(245,158,11,0.15)]" : "border-[#333] hover:border-neutral-700"
                     )}
                     title="Toggle Suggested Strumming Pattern"
                   >
-                    Strum
+                    <div className="flex flex-col">
+                      <span className="text-[7px] font-black text-neutral-500 uppercase tracking-tighter leading-none mb-0.5">Strumming</span>
+                      <span className={cn("text-[9px] font-black leading-none uppercase", showStrummingPattern ? "text-amber-500" : "text-neutral-400")}>
+                        {showStrummingPattern ? "ON" : "OFF"}
+                      </span>
+                    </div>
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full ml-1.5 shrink-0",
+                      showStrummingPattern ? "bg-amber-500 animate-pulse" : "bg-neutral-700"
+                    )} />
                   </button>
                 </div>
+                
                 <div className="flex items-center gap-2">
                   <span className="text-[8px] font-black text-neutral-600 uppercase tracking-[0.2em]">Original: {song.originalKey}</span>
                   <span className="text-[8px] font-black text-neutral-600 uppercase tracking-[0.2em]">{song.suggestedTempo} BPM</span>
@@ -2164,49 +2211,7 @@ export default function App() {
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-neutral-800/30 rounded-lg border border-neutral-800">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-neutral-200 uppercase tracking-widest">Strumming Pattern</span>
-                        <span className="text-[8px] text-neutral-500 uppercase font-black tracking-widest">Show suggested patterns</span>
-                      </div>
-                      <button 
-                        onClick={() => setShowStrummingPattern(!showStrummingPattern)}
-                        className={cn(
-                          "w-10 h-5 rounded-full relative transition-all duration-300",
-                          showStrummingPattern ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]" : "bg-neutral-900 border border-[#333]"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-1 w-3 h-3 rounded-full transition-all duration-300",
-                          showStrummingPattern ? "left-6 bg-black" : "left-1 bg-neutral-500"
-                        )} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-neutral-800/30 rounded-lg border border-neutral-800">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-white uppercase tracking-widest">Easy Chords</span>
-                        <span className="text-[8px] text-neutral-500 uppercase font-bold">Transpose to easy keys</span>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          const next = !isEasyMode;
-                          setIsEasyMode(next);
-                          if (song) {
-                            setKeyOffset(next ? getEasyKeyOffset(song.sections) : 0);
-                          }
-                        }}
-                        className={cn(
-                          "w-10 h-5 rounded-full relative transition-all duration-300",
-                          isEasyMode ? "bg-amber-500" : "bg-neutral-700"
-                        )}
-                      >
-                        <div className={cn(
-                          "absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm",
-                          isEasyMode ? "left-6" : "left-1"
-                        )} />
-                      </button>
-                    </div>
+                    {/* Strumming & Easy Chords toggles removed because they are prominent in the song header */}
                   </div>
                 </div>
 
@@ -2537,6 +2542,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+      <FeedbackAssistant />
     </div>
   );
 }
