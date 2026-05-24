@@ -1,0 +1,15 @@
+# Set default behavior to automatic text conversion.
+* text=auto
+
+# Declare files that will always have LF line endings on checkout.
+*.sh text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+
+# Explicitly declare files that are binary and must not be touched by text conversions.
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
