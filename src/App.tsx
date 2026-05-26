@@ -72,6 +72,11 @@ export default function App() {
     const saved = localStorage.getItem('pref_show_strumming');
     return saved === null ? true : saved === 'true';
   });
+  const [showSightGuide, setShowSightGuide] = useState(() => {
+    const saved = localStorage.getItem('pref_show_sight_guide');
+    return saved === null ? false : saved === 'true';
+  });
+  const [isScrollControlsExpanded, setIsScrollControlsExpanded] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [isEasyMode, setIsEasyMode] = useState(() => {
@@ -80,10 +85,51 @@ export default function App() {
 
   const setSongWithStrumming = (s: SongData | null) => {
     if (s) {
-      const hasStrum = s.strummingPattern && s.strummingPattern.trim() !== "" && s.strummingPattern.toUpperCase() !== "N/A";
+      let strumPattern = s.strummingPattern;
+      
+      // 1. Recover strumming suggestion from preloaded classics if possible
+      const normalizedTitle = s.title.toLowerCase().trim();
+      const normalizedArtist = s.artist.toLowerCase().trim();
+      const preloadedMatch = PRELOADED_SONGS.find(p => 
+        p.title.toLowerCase().trim() === normalizedTitle &&
+        p.artist.toLowerCase().trim() === normalizedArtist
+      );
+      
+      if (preloadedMatch && preloadedMatch.strummingPattern) {
+        strumPattern = preloadedMatch.strummingPattern;
+      }
+      
+      // 2. Fallback generator if empty or set to None / N/A
+      const isEmptyOrUnavailable = !strumPattern || 
+                                   strumPattern.trim() === "" || 
+                                   strumPattern.toUpperCase() === "N/A" || 
+                                   strumPattern.toUpperCase() === "NONE" ||
+                                   strumPattern.toUpperCase() === "UNDEFINED" ||
+                                   strumPattern.toLowerCase().includes("no strumming");
+                                   
+      if (isEmptyOrUnavailable) {
+        // Generate a dynamic, unique guitar suggested strumming pattern based on tempo and title attributes
+        const tempo = s.suggestedTempo || 100;
+        if (tempo < 75) {
+          strumPattern = "D-D-D-DD"; // Slow rock/ballad pattern
+        } else if (tempo > 120) {
+          strumPattern = "D-DU-DU-DU"; // Fast uptempo pattern
+        } else {
+          // Moderate tempo - assign variation depending on title hash for unique feeling
+          const code = s.title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          if (code % 3 === 0) {
+            strumPattern = "D-D-DU-DU"; // Standard folk pop ballad
+          } else if (code % 3 === 1) {
+            strumPattern = "D-DU-U-DU"; // Synchronized acoustic pattern
+          } else {
+            strumPattern = "D-D---D-DU"; // Syncopated steady downbeats
+          }
+        }
+      }
+      
       setSong({
         ...s,
-        strummingPattern: hasStrum ? s.strummingPattern : "D-D-DU-DU"
+        strummingPattern: strumPattern || "No strumming suggestions"
       });
     } else {
       setSong(null);
@@ -186,23 +232,32 @@ export default function App() {
     }
   }, [user]);
 
-  // Automatically adjust scroll speed when a song is loaded or its tempo is adjusted,
+  // Automatically adjust scroll speed when a song is loaded,
+  // calculating a perfect default speed that adapts to the song's complexity, BPM,
+  // and length so it accommodates most songs naturally out-of-the-box,
   // while still allowing the user to override/adjust the scroll speed manually.
   useEffect(() => {
-    if (song && currentTempo > 0) {
-      // Calculate a scroll speed based on the song's tempo.
-      // 120 BPM normally maps well to ~24 scroll speed (tempo / 5).
-      // Let's clamp it between 5 and 100 to keep it safe.
-      const calculatedSpeed = Math.max(5, Math.min(100, Math.round(currentTempo / 5)));
-      setScrollSpeed(calculatedSpeed);
+    if (song) {
+      // Calculate perfect default scroll speed based on estimated height of song and estimated duration
+      const totalLines = song.sections.reduce((acc, s) => acc + s.lines.length + 1, 0);
+      const estimatedHeight = totalLines * 44 + 320;
+      const tempo = song.suggestedTempo || 120;
+      const estimatedSecs = (song.sections.length * 22) + (totalLines * 1.8) + (120 / tempo) * 35;
+      
+      // Speed in pixels per second
+      const idealSpeed = Math.round(estimatedHeight / Math.max(60, estimatedSecs));
+      const clampedSpeed = Math.max(10, Math.min(50, idealSpeed));
+      
+      setScrollSpeed(clampedSpeed);
     }
-  }, [song, currentTempo]);
+  }, [song]);
 
   // Save preferences to localStorage & Firestore when they change
   useEffect(() => {
     // Save to local storage immediately
     localStorage.setItem('pref_font_size', String(fontSize));
     localStorage.setItem('pref_show_strumming', String(showStrummingPattern));
+    localStorage.setItem('pref_show_sight_guide', String(showSightGuide));
     localStorage.setItem('pref_easy_mode', String(isEasyMode));
     localStorage.setItem('pref_scroll_speed', String(scrollSpeed));
 
@@ -227,7 +282,7 @@ export default function App() {
         }).catch(err => console.error("Failed to sync preferences to Firestore:", err));
       }
     }
-  }, [fontSize, showStrummingPattern, isEasyMode, scrollSpeed, user, userProfile, isPreferencesLoaded]);
+  }, [fontSize, showStrummingPattern, showSightGuide, isEasyMode, scrollSpeed, user, userProfile, isPreferencesLoaded]);
 
   // Fetch stripe config status once
   useEffect(() => {
@@ -792,7 +847,7 @@ export default function App() {
         artist: data.artist,
         originalKey: data.originalKey || "C",
         suggestedTempo: data.suggestedTempo || 120,
-        strummingPattern: data.strummingPattern || "D-D-DU-DU",
+        strummingPattern: data.strummingPattern || "No strumming suggestions",
         sections: data.sections || [],
       };
 
@@ -845,15 +900,45 @@ export default function App() {
     }
   };
 
-  const selectPreloaded = (preloaded: SongData) => {
-    if (!preloaded || !preloaded.sections) return;
-    setSongWithStrumming(preloaded);
-    const initialOffset = isEasyMode ? getEasyKeyOffset(preloaded.sections) : 0;
-    setKeyOffset(initialOffset);
-    setCurrentTempo(preloaded.suggestedTempo || 100);
-    setIsScrolling(false);
-    setIsSettingsOpen(false);
-    window.scrollTo(0, 0);
+  const selectPreloaded = async (preloaded: any) => {
+    if (!preloaded) return;
+    setLoading(true);
+    setError(null);
+    try {
+      let data = { ...preloaded } as SongData;
+      
+      // If sections are missing, lazy fetch them on the fly
+      if (!data.sections || data.sections.length === 0) {
+        data = await fetchSongData(`${preloaded.artist} - ${preloaded.title}`);
+        
+        // Background repair Firestore if we are registered
+        if (user && preloaded.id && !preloaded.id.toString().startsWith('guest-')) {
+          const docRef = doc(db, `users/${user.uid}/songs`, preloaded.id);
+          updateDoc(docRef, {
+            originalKey: data.originalKey || "C",
+            suggestedTempo: data.suggestedTempo || 120,
+            strummingPattern: data.strummingPattern || "No strumming suggestions",
+            sections: data.sections || []
+          }).catch(e => console.warn("Failed to repair song in Firestore", e));
+        } else if (!user && preloaded.id && preloaded.id.toString().startsWith('guest-')) {
+          // Repair guest local state
+          setLocalLibrary(prev => prev.map(s => s.id === preloaded.id ? { ...s, ...data } : s));
+        }
+      }
+      
+      setSongWithStrumming(data);
+      const initialOffset = isEasyMode ? getEasyKeyOffset(data.sections) : 0;
+      setKeyOffset(initialOffset);
+      setCurrentTempo(data.suggestedTempo || 100);
+      setIsScrolling(false);
+      setIsSettingsOpen(false);
+      window.scrollTo(0, 0);
+    } catch (e: any) {
+      console.error("Failed to load song from library", e);
+      setError("Failed to load song details. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const goHome = () => {
@@ -1789,7 +1874,7 @@ export default function App() {
                       if (song) setKeyOffset(next ? getEasyKeyOffset(song.sections) : 0);
                     }}
                     className={cn(
-                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1.5 px-2.5 shadow-sm transition-all cursor-pointer text-left h-[40px] md:h-[38px] md:w-[98px]",
+                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1.5 px-2.5 shadow-sm transition-all cursor-pointer text-left h-[40px] md:h-[38px] w-full md:w-[115px] shrink-0",
                       isEasyMode ? "border-amber-500 bg-amber-500/5 shadow-[0_0_10px_rgba(245,158,11,0.15)]" : "border-[#333] hover:border-neutral-700"
                     )}
                     title="Toggle Easy Chords mode"
@@ -1812,7 +1897,7 @@ export default function App() {
                       setShowStrummingPattern(prev => !prev);
                     }}
                     className={cn(
-                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1.5 px-2.5 shadow-sm transition-all cursor-pointer text-left h-[40px] md:h-[38px] md:w-[98px]",
+                      "flex items-center justify-between bg-neutral-900 border rounded-lg p-1.5 px-2.5 shadow-sm transition-all cursor-pointer text-left h-[40px] md:h-[38px] w-full md:w-[115px] shrink-0",
                       showStrummingPattern ? "border-amber-500 bg-amber-500/5 shadow-[0_0_10px_rgba(245,158,11,0.15)]" : "border-[#333] hover:border-neutral-700"
                     )}
                     title="Toggle Suggested Strumming Pattern"
@@ -1864,51 +1949,57 @@ export default function App() {
                 <div className="flex flex-col select-none shrink-0 sm:border-r sm:border-amber-500/10 sm:pr-4 print:border-none print:p-0">
                   <span className="text-[7px] font-black text-amber-500/40 uppercase tracking-widest leading-none mb-1.5 print:text-black/50">Suggested Strumming Pattern</span>
                   <span className="text-xs font-black text-amber-500 tracking-[0.2em] font-mono leading-none print:text-black print:text-[10pt]">
-                    {song.strummingPattern && song.strummingPattern.trim() !== "" && song.strummingPattern.toUpperCase() !== "N/A" ? song.strummingPattern : "D-D-DU-DU"}
+                    {song.strummingPattern}
                   </span>
                 </div>
 
-                {/* Visual Arrow Blocks */}
-                <div className="flex items-center gap-1 print:hidden select-none animate-fade-in">
-                  {(song.strummingPattern && song.strummingPattern.trim() !== "" && song.strummingPattern.toUpperCase() !== "N/A" ? song.strummingPattern : "D-D-DU-DU").split('').map((char, idx) => {
-                    const isD = char.toUpperCase() === 'D';
-                    const isU = char.toUpperCase() === 'U';
-                    
-                    if (isD) {
-                      return (
-                        <div 
-                          key={`strum-${idx}`}
-                          className="flex flex-col items-center justify-center w-6 h-9 bg-amber-500 text-black font-black rounded border border-amber-400 shadow-sm"
-                          title="Down Strum"
-                        >
-                          <ArrowDown className="w-3.5 h-3.5 stroke-[3.5]" />
-                          <span className="text-[8px] leading-none mt-0.5 font-bold">D</span>
-                        </div>
-                      );
-                    } else if (isU) {
-                      return (
-                        <div 
-                          key={`strum-${idx}`}
-                          className="flex flex-col items-center justify-center w-6 h-9 bg-amber-500 text-black font-black rounded border border-amber-400 shadow-sm"
-                          title="Up Strum"
-                        >
-                          <ArrowUp className="w-3.5 h-3.5 stroke-[3.5]" />
-                          <span className="text-[8px] leading-none mt-0.5 font-bold">U</span>
-                        </div>
-                      );
-                    } else {
-                      return (
-                        <div 
-                          key={`strum-${idx}`}
-                          className="flex flex-col items-center justify-center w-3 h-9 bg-[#111] border border-neutral-800 rounded"
-                          title="Spacer"
-                        >
-                          <div className="w-1 h-1 bg-neutral-700 rounded-full" />
-                        </div>
-                      );
-                    }
-                  })}
-                </div>
+                {/* Visual Arrow Blocks (Only render for valid musical pattern notations) */}
+                {song.strummingPattern && 
+                 song.strummingPattern.trim() !== "" && 
+                 song.strummingPattern.toUpperCase() !== "N/A" && 
+                 song.strummingPattern.toUpperCase() !== "NONE" && 
+                 !song.strummingPattern.toLowerCase().includes("no strumming") && (
+                  <div className="flex items-center gap-1 print:hidden select-none animate-fade-in">
+                    {song.strummingPattern.split('').map((char, idx) => {
+                      const isD = char.toUpperCase() === 'D';
+                      const isU = char.toUpperCase() === 'U';
+                      
+                      if (isD) {
+                        return (
+                          <div 
+                            key={`strum-${idx}`}
+                            className="flex flex-col items-center justify-center w-6 h-9 bg-amber-500 text-black font-black rounded border border-amber-400 shadow-sm"
+                            title="Down Strum"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5 stroke-[3.5]" />
+                            <span className="text-[8px] leading-none mt-0.5 font-bold">D</span>
+                          </div>
+                        );
+                      } else if (isU) {
+                        return (
+                          <div 
+                            key={`strum-${idx}`}
+                            className="flex flex-col items-center justify-center w-6 h-9 bg-amber-500 text-black font-black rounded border border-amber-400 shadow-sm"
+                            title="Up Strum"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5 stroke-[3.5]" />
+                            <span className="text-[8px] leading-none mt-0.5 font-bold">U</span>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div 
+                            key={`strum-${idx}`}
+                            className="flex flex-col items-center justify-center w-3 h-9 bg-[#111] border border-neutral-800 rounded"
+                            title="Spacer"
+                          >
+                            <div className="w-1 h-1 bg-neutral-700 rounded-full" />
+                          </div>
+                        );
+                      }
+                    })}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -2194,6 +2285,31 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* Focus Sight Line Switch */}
+                    <div className="flex items-center justify-between p-3 bg-neutral-900/45 border border-neutral-800/80 rounded-xl">
+                      <div className="flex flex-col text-left">
+                        <span className="text-[10px] font-black text-[#E0E0E0] uppercase tracking-wider">Practice Sight Line</span>
+                        <span className="text-[8.5px] text-neutral-500">Center visual guideway overlay</span>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const next = !showSightGuide;
+                          setShowSightGuide(next);
+                          localStorage.setItem('pref_show_sight_guide', String(next));
+                        }}
+                        className={cn(
+                          "w-10 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer",
+                          showSightGuide ? "bg-amber-500" : "bg-neutral-800"
+                        )}
+                        title="Toggle Sight Reading Line Guide"
+                      >
+                        <div className={cn(
+                          "w-4 h-4 rounded-full bg-neutral-950 transition-transform duration-200 ease-in-out",
+                          showSightGuide ? "translate-x-5" : "translate-x-0"
+                        )} />
+                      </button>
+                    </div>
+
                     <div className="flex items-center justify-between p-3 bg-neutral-800/30 rounded-lg border border-neutral-800">
                       <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-white uppercase tracking-widest">Share & Export</span>
@@ -2315,44 +2431,150 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Sight Reading Guide Overlay */}
+      {song && showSightGuide && isScrolling && (
+        <div className="fixed left-0 right-0 top-[35%] h-[72px] -translate-y-1/2 pointer-events-none z-[40] transition-opacity duration-300 print:hidden animate-fade-in">
+          {/* Top glowing boundary line */}
+          <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+          
+          {/* Subtle horizontal highlight lane */}
+          <div className="w-full h-full bg-amber-500/[0.02] backdrop-blur-[0.5px] flex items-center justify-between px-4 md:px-12" />
+          
+          {/* Bottom glowing boundary line */}
+          <div className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+          
+          {/* Micro badges on the sides */}
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1.5 bg-neutral-950/80 border border-amber-500/20 rounded px-1.5 py-0.5 text-[6.5px] font-black text-amber-500 uppercase tracking-widest select-none">
+            <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+            Sight Line
+          </div>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1.5 bg-neutral-950/80 border border-neutral-800 rounded px-1.5 py-0.5 text-[6.5px] font-black text-neutral-500 uppercase tracking-widest select-none">
+            Speed {scrollSpeed}
+          </div>
+        </div>
+      )}
+
       {/* Playback Control */}
       {song && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 p-1.5 pointer-events-none mb-0.5">
-          <div className="max-w-[240px] mx-auto flex items-center justify-between bg-neutral-950 border border-white/10 px-2.5 py-1.5 rounded-full shadow-2xl pointer-events-auto">
-            <button 
-              onClick={() => setIsScrolling(!isScrolling)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all",
-                isScrolling ? "bg-red-500/10 text-red-500 border border-red-500/10" : "bg-amber-500 text-black"
-              )}
-            >
-              {isScrolling ? <><Pause className="w-2 h-2" /> Stop</> : <><Play className="w-2 h-2" /> Scroll</>}
-            </button>
+        <div className="fixed bottom-0 left-0 right-0 z-50 p-3 pointer-events-none mb-1 md:mb-3">
+          <div className="max-w-[320px] md:max-w-[450px] mx-auto flex flex-col bg-neutral-950/95 backdrop-blur-md border border-neutral-800 px-4 py-2.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] pointer-events-auto transition-all duration-300">
+            {/* Main playback control line */}
+            <div className="flex items-center justify-between gap-2 md:gap-4">
+              <button 
+                onClick={() => setIsScrolling(!isScrolling)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider transition-all shadow-md shrink-0 cursor-pointer",
+                  isScrolling 
+                    ? "bg-rose-500 text-white shadow-rose-500/10 hover:bg-rose-600" 
+                    : "bg-amber-500 text-black shadow-amber-500/10 hover:bg-amber-400"
+                )}
+              >
+                {isScrolling ? <><Pause className="w-3 h-3" /> Stop</> : <><Play className="w-3 h-3" /> Auto Scroll</>}
+              </button>
 
-            <div className="flex items-center gap-3">
-              <button 
-                id="floating-print-button"
-                onClick={() => handlePrint()}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 border border-amber-600 rounded-full text-black transition-all active:scale-90 print:hidden shadow-xl shadow-amber-500/40 cursor-pointer z-[100]"
-                title="Print A4 Song Sheet"
-              >
-                <Printer className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase tracking-widest">PDF</span>
-              </button>
-              <div className="h-6 w-px bg-white/10" />
-              <button 
-                onClick={resetScroll}
-                className="p-2.5 hover:bg-neutral-900 border border-white/10 rounded-full text-white/70 min-w-[36px] min-h-[36px] flex items-center justify-center"
-                title="Top"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-              <div className="h-6 w-px bg-white/10" />
-              <div className="flex flex-col items-end px-1">
-                <span className="text-[6px] uppercase tracking-tighter opacity-40 leading-none">BPM</span>
-                <span className="text-[10px] font-bold text-white font-mono leading-none">{currentTempo}</span>
+              <div className="flex items-center gap-1.5 md:gap-3">
+                <button 
+                  onClick={() => setIsScrollControlsExpanded(!isScrollControlsExpanded)}
+                  className={cn(
+                    "p-2 rounded-full transition-all text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent cursor-pointer flex items-center gap-1",
+                    isScrollControlsExpanded && "bg-neutral-900 text-amber-500 border-neutral-800"
+                  )}
+                  title="Scroll Settings & Speed"
+                >
+                  <Settings className={cn("w-4 h-4 transition-transform duration-300", isScrollControlsExpanded && "rotate-45")} />
+                  <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">Speed</span>
+                </button>
+
+                <div className="h-5 w-px bg-neutral-800 hidden md:block" />
+
+                <button 
+                  id="floating-print-button"
+                  onClick={() => handlePrint()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 rounded-full text-amber-500 transition-all active:scale-95 print:hidden shadow-md cursor-pointer shrink-0"
+                  title="Print A4 Song Sheet"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-black uppercase tracking-wider">PDF</span>
+                </button>
+
+                <div className="h-5 w-px bg-neutral-800" />
+                
+                <button 
+                  onClick={resetScroll}
+                  className="p-2 hover:bg-neutral-900 border border-neutral-800 rounded-full text-neutral-400 hover:text-white min-w-[32px] min-h-[32px] flex items-center justify-center transition-all cursor-pointer"
+                  title="Scroll to Top"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
+
+            {/* Expanded section (Speed changer & Sight Guide Toggle) */}
+            {isScrollControlsExpanded && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-3 pt-3 border-t border-neutral-900 space-y-3.5"
+              >
+                {/* Scroll speed slider row */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-[9px] font-black text-neutral-500 uppercase tracking-widest leading-none">Scroll Speed</span>
+                    <span className="text-[10px] font-mono font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded leading-none">{scrollSpeed}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setScrollSpeed(Math.max(5, scrollSpeed - 2))} 
+                      className="p-1 px-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                      title="Decrease Speed"
+                    >
+                      <ArrowDown className="w-3 h-3" />
+                    </button>
+                    <input 
+                      type="range" 
+                      min="5" 
+                      max="100" 
+                      step="1" 
+                      value={scrollSpeed} 
+                      onChange={(e) => setScrollSpeed(parseInt(e.target.value))} 
+                      className="flex-1 accent-amber-500 cursor-pointer h-1.5 rounded-full bg-neutral-900" 
+                    />
+                    <button 
+                      onClick={() => setScrollSpeed(Math.min(100, scrollSpeed + 2))} 
+                      className="p-1 px-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                      title="Increase Speed"
+                    >
+                      <ArrowUp className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sight Reading Guide Toggler */}
+                <div className="flex items-center justify-between bg-neutral-900/60 p-2 rounded-xl border border-neutral-900">
+                  <div className="flex flex-col text-left">
+                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-wider leading-none mb-0.5">Focus Sight Line</span>
+                    <span className="text-[8px] text-neutral-500 leading-none">Keeps your eyes centered on the current line</span>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      const next = !showSightGuide;
+                      setShowSightGuide(next);
+                      localStorage.setItem('pref_show_sight_guide', String(next));
+                    }}
+                    className={cn(
+                      "flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                      showSightGuide 
+                        ? "bg-amber-500/10 border-amber-500/40 text-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.1)]" 
+                        : "bg-neutral-950 border-neutral-800 text-neutral-500"
+                    )}
+                  >
+                    <span className={cn("inline-block w-1.5 h-1.5 rounded-full", showSightGuide ? "bg-amber-500 animate-pulse" : "bg-neutral-700")} />
+                    {showSightGuide ? "VISIBLE" : "HIDDEN"}
+                  </button>
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
       )}
