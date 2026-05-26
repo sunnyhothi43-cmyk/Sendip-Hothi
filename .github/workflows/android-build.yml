@@ -40,7 +40,7 @@ jobs:
       - name: Download Pristine Gradle Wrapper Jar
         run: |
           mkdir -p android/gradle/wrapper
-          curl -Lo android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.14.3/gradle/wrapper/gradle-wrapper.jar
+          curl -Lo android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.2.1/gradle/wrapper/gradle-wrapper.jar
 
       - name: Grant Execute Permissions for Gradlew
         run: chmod +x android/gradlew
