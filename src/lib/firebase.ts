@@ -14,8 +14,13 @@ import {
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-console.log('[FIREBASE] Loading config:', firebaseConfig);
-const config = (firebaseConfig as any).default || firebaseConfig;
+console.log('[FIREBASE] Raw config from JSON:', firebaseConfig);
+const rawConfig = firebaseConfig as any;
+const config = (rawConfig && rawConfig.projectId) 
+  ? rawConfig 
+  : (rawConfig.default || rawConfig);
+
+console.log('[FIREBASE] Normalized config:', config);
 
 let app: any;
 try {
@@ -25,19 +30,26 @@ try {
   console.error('[FIREBASE] Failed to initialize Firebase App:', e);
 }
 
-let dbInstance: any;
+let dbInstance: any = null;
 if (app) {
   try {
-    const dbId = config.firestoreDatabaseId && config.firestoreDatabaseId.trim() !== '' 
-      ? config.firestoreDatabaseId 
+    const dbId = config.firestoreDatabaseId && typeof config.firestoreDatabaseId === 'string' && config.firestoreDatabaseId.trim() !== '' 
+      ? config.firestoreDatabaseId.trim() 
       : undefined;
 
-    console.log('[FIREBASE] Initializing Firestore. Database ID:', dbId || '(default)');
-    dbInstance = getFirestore(app, dbId);
+    if (dbId) {
+      console.log('[FIREBASE] Initializing Firestore. Database ID:', dbId);
+      dbInstance = getFirestore(app, dbId);
+    } else {
+      console.log('[FIREBASE] Initializing Firestore. Database ID: (default)');
+      dbInstance = getFirestore(app);
+    }
+    console.log('[FIREBASE] Firestore initialized successfully.');
   } catch (e) {
-    console.error('[FIREBASE] Failed to initialize Firestore with database ID, falling back:', e);
+    console.error('[FIREBASE] Failed to initialize Firestore with database ID, falling back to default:', e);
     try {
       dbInstance = getFirestore(app);
+      console.log('[FIREBASE] Fallback Firestore initialized successfully.');
     } catch (err2) {
       console.error('[FIREBASE] Critical: Failed to initialize Firestore entirely:', err2);
     }
@@ -45,7 +57,7 @@ if (app) {
 }
 
 export const db = dbInstance;
-console.log('[FIREBASE] db initialized as:', db);
+console.log('[FIREBASE] db exported as:', db ? 'Firestore Instance' : 'undefined/null');
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

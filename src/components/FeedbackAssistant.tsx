@@ -79,7 +79,7 @@ export function FeedbackAssistant() {
     // Save ticket to Firestore asynchronously
     let firestoreDocId = '';
     const currentUser = auth.currentUser;
-    if (currentUser) {
+    if (currentUser && db) {
       try {
         const feedbackRef = collection(db, 'feedbacks');
         const docRef = await addDoc(feedbackRef, {
