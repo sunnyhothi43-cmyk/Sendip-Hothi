@@ -14,8 +14,30 @@ import {
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
+console.log('[FIREBASE] Loading config:', firebaseConfig);
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+console.log('[FIREBASE] App initialized:', app ? 'SUCCESS' : 'FAILURE');
+
+let dbInstance: any;
+try {
+  const dbId = (firebaseConfig as any).firestoreDatabaseId && (firebaseConfig as any).firestoreDatabaseId.trim() !== '' 
+    ? (firebaseConfig as any).firestoreDatabaseId 
+    : undefined;
+
+  console.log('[FIREBASE] Initializing Firestore. Database ID:', dbId || '(default)');
+  dbInstance = getFirestore(app, dbId);
+} catch (e) {
+  console.error('[FIREBASE] Failed to initialize Firestore with database ID, falling back:', e);
+  try {
+    dbInstance = getFirestore(app);
+  } catch (err2) {
+    console.error('[FIREBASE] Critical: Failed to initialize Firestore entirely:', err2);
+  }
+}
+
+export const db = dbInstance;
+console.log('[FIREBASE] db initialized as:', db);
+
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
