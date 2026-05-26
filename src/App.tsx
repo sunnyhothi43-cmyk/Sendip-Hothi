@@ -150,6 +150,7 @@ export default function App() {
   const [loginMode, setLoginMode] = useState<'signin' | 'signup'>('signup');
   const [manualLoginData, setManualLoginData] = useState({ name: '', email: '', country: '', password: '' });
   const [isManualLoggingIn, setIsManualLoggingIn] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
 
   const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
 
@@ -1061,6 +1062,7 @@ export default function App() {
       
       setIsLoginModalOpen(false);
       setManualLoginData({ name: '', email: '', country: '', password: '' });
+      setShowEmailForm(false);
     } catch (err: any) {
       let msg = "Failed to sign in";
       if (err.code === 'auth/operation-not-allowed') {
@@ -1160,7 +1162,7 @@ export default function App() {
               className="bg-[#0A0A0A] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden relative"
             >
               <button 
-                onClick={() => setIsLoginModalOpen(false)}
+                onClick={() => { setIsLoginModalOpen(false); setManualLoginData({ name: '', email: '', country: '', password: '' }); setShowEmailForm(false); }}
                 className="absolute top-4 right-4 p-2 text-neutral-500 hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -1201,7 +1203,7 @@ export default function App() {
 
                 <div className="space-y-6">
                   {/* Choice Grid */}
-                  {!manualLoginData.email && !isManualLoggingIn ? (
+                  {!showEmailForm ? (
                     <div className="grid grid-cols-1 gap-3">
                       <button 
                         onClick={handleGoogleLogin}
@@ -1226,7 +1228,7 @@ export default function App() {
                       </div>
 
                       <button 
-                        onClick={() => setManualLoginData({ ...manualLoginData, email: ' ' })} // Dummy space to show form
+                        onClick={() => { setManualLoginData({ name: '', email: '', country: '', password: '' }); setShowEmailForm(true); }}
                         className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-neutral-900 border border-white/10 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] hover:bg-neutral-800 transition-all active:scale-[0.98]"
                       >
                         Sign in with Email
@@ -1238,7 +1240,7 @@ export default function App() {
                       animate={{ opacity: 1, x: 0 }}
                     >
                       <button 
-                        onClick={() => setManualLoginData({ ...manualLoginData, email: '' })}
+                        onClick={() => { setManualLoginData({ name: '', email: '', country: '', password: '' }); setShowEmailForm(false); }}
                         className="text-[8px] text-neutral-500 hover:text-amber-500 uppercase font-black tracking-widest mb-4 flex items-center gap-2 group"
                       >
                         <X className="w-3 h-3 group-hover:rotate-90 transition-transform" />
@@ -1271,7 +1273,7 @@ export default function App() {
                           placeholder="EMAIL"
                           autoFocus
                           className="w-full bg-neutral-900 border border-white/5 p-4 rounded-xl text-[10px] text-white uppercase tracking-widest placeholder:text-neutral-600 focus:border-amber-500/50 outline-none transition-all font-bold"
-                          value={manualLoginData.email === ' ' ? '' : manualLoginData.email}
+                          value={manualLoginData.email}
                           onChange={e => setManualLoginData({ ...manualLoginData, email: e.target.value })}
                           required
                         />
@@ -1298,7 +1300,8 @@ export default function App() {
                     <button 
                       onClick={() => {
                         setLoginMode(loginMode === 'signup' ? 'signin' : 'signup');
-                        setManualLoginData({ ...manualLoginData, email: '' }); // Reset to choice on mode switch
+                        setManualLoginData({ name: '', email: '', country: '', password: '' });
+                        setShowEmailForm(false);
                       }}
                       className="text-[9px] uppercase tracking-widest font-black text-neutral-500 hover:text-amber-500 transition-colors"
                     >
