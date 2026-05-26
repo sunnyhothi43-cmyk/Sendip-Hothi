@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -15,23 +15,32 @@ import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 console.log('[FIREBASE] Loading config:', firebaseConfig);
-const app = initializeApp(firebaseConfig);
-console.log('[FIREBASE] App initialized:', app ? 'SUCCESS' : 'FAILURE');
+const config = (firebaseConfig as any).default || firebaseConfig;
+
+let app: any;
+try {
+  app = getApps().length === 0 ? initializeApp(config) : getApp();
+  console.log('[FIREBASE] App initialized:', app ? 'SUCCESS' : 'FAILURE');
+} catch (e) {
+  console.error('[FIREBASE] Failed to initialize Firebase App:', e);
+}
 
 let dbInstance: any;
-try {
-  const dbId = (firebaseConfig as any).firestoreDatabaseId && (firebaseConfig as any).firestoreDatabaseId.trim() !== '' 
-    ? (firebaseConfig as any).firestoreDatabaseId 
-    : undefined;
-
-  console.log('[FIREBASE] Initializing Firestore. Database ID:', dbId || '(default)');
-  dbInstance = getFirestore(app, dbId);
-} catch (e) {
-  console.error('[FIREBASE] Failed to initialize Firestore with database ID, falling back:', e);
+if (app) {
   try {
-    dbInstance = getFirestore(app);
-  } catch (err2) {
-    console.error('[FIREBASE] Critical: Failed to initialize Firestore entirely:', err2);
+    const dbId = config.firestoreDatabaseId && config.firestoreDatabaseId.trim() !== '' 
+      ? config.firestoreDatabaseId 
+      : undefined;
+
+    console.log('[FIREBASE] Initializing Firestore. Database ID:', dbId || '(default)');
+    dbInstance = getFirestore(app, dbId);
+  } catch (e) {
+    console.error('[FIREBASE] Failed to initialize Firestore with database ID, falling back:', e);
+    try {
+      dbInstance = getFirestore(app);
+    } catch (err2) {
+      console.error('[FIREBASE] Critical: Failed to initialize Firestore entirely:', err2);
+    }
   }
 }
 
@@ -99,6 +108,10 @@ export async function logout() {
 
 // Connection test as required by instructions
 async function testConnection() {
+  if (!db) {
+    console.warn('[FIREBASE] db is not initialized, skipping testConnection');
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     console.log("Firestore connected successfully.");
