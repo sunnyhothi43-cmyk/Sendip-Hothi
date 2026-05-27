@@ -37,13 +37,10 @@ jobs:
       - name: Sync Capacitor Android Project
         run: npx cap sync android
 
-      - name: Download Pristine Gradle Wrapper Jar
+      - name: Generate Pristine Gradle Wrapper Jar
         run: |
-          mkdir -p android/gradle/wrapper
-          curl -LO https://services.gradle.org/distributions/gradle-8.7-bin.zip
-          unzip -q gradle-8.7-bin.zip
-          find gradle-8.7 -name "gradle-wrapper-*.jar" -exec cp {} android/gradle/wrapper/gradle-wrapper.jar \;
-          rm -rf gradle-8.7 gradle-8.7-bin.zip
+          cd android
+          gradle wrapper --gradle-version 8.7 --distribution-type all
 
       - name: Grant Execute Permissions for Gradlew
         run: chmod +x android/gradlew
