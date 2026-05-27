@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { X, LogIn, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   auth, 
   loginWithGoogle, 
   loginWithGoogleRedirect, 
   signUpWithEmail, 
   loginWithEmail, 
-  db 
+  db,
+  doc,
+  setDoc,
+  serverTimestamp
 } from '../lib/firebase';
 import firebaseConfig from '../firebase-applet-config.json';
 

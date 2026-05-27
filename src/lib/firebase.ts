@@ -11,7 +11,22 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  doc, 
+  getDocFromServer,
+  collection,
+  query,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  serverTimestamp,
+  orderBy,
+  getDoc,
+  setDoc,
+  increment,
+  updateDoc
+} from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 console.log('[FIREBASE] Raw config from JSON:', firebaseConfig);
@@ -181,3 +196,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+export {
+  doc,
+  collection,
+  query,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  serverTimestamp,
+  orderBy,
+  getDoc,
+  setDoc,
+  increment,
+  updateDoc
+};

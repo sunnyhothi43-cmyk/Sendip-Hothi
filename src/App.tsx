@@ -5,9 +5,33 @@ import { fetchSongData, SongData, fetchRecommendations, searchSongs, fetchChordF
 import { transposeLine, parseChordSegments, getEasyKeyOffset, transposeChord } from './lib/musicUtils';
 import { cn } from './lib/utils';
 import { PRELOADED_SONGS } from './lib/preloadedSongs';
-import { auth, loginWithGoogle, loginWithGoogleRedirect, handleRedirectResult, loginAnonymously, signUpWithEmail, loginWithEmail, logout, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { 
+  auth, 
+  loginWithGoogle, 
+  loginWithGoogleRedirect, 
+  handleRedirectResult, 
+  loginAnonymously, 
+  signUpWithEmail, 
+  loginWithEmail, 
+  logout, 
+  db, 
+  handleFirestoreError, 
+  OperationType,
+  collection,
+  query as fsQuery,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  orderBy,
+  getDoc,
+  setDoc,
+  increment,
+  updateDoc
+} from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query as fsQuery, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, orderBy, DocumentData, getDoc, setDoc, increment, updateDoc } from 'firebase/firestore';
+import { DocumentData } from 'firebase/firestore';
 import { CHORD_LIBRARY, ChordPosition } from './lib/chordLibrary';
 import { ChordDiagram } from './components/ChordDiagram';
 import { FeedbackAssistant } from './components/FeedbackAssistant';
@@ -45,6 +69,7 @@ export default function App() {
   const [recommendations, setRecommendations] = useState<{ title: string; artist: string }[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const lastRecsKeyRef = useRef<string>("");
+  const isAutoAdjustingScrollSpeedRef = useRef(false);
   
   const [keyOffset, setKeyOffset] = useState(0);
   const [currentTempo, setCurrentTempo] = useState(0);
@@ -168,15 +193,12 @@ export default function App() {
       const isAdmin = user.email === 'sunny.hothi43@gmail.com';
       if (snapshot.exists()) {
         const data = snapshot.data();
-        // Force subscribe admin if somehow not subscribed in DB
-        if (isAdmin && (!data.isSubscribed || !data.subscriptionType)) {
-          updateDoc(doc(db, 'users', user.uid), { 
-            isSubscribed: true, 
-            subscriptionType: 'lifetime',
-            updatedAt: serverTimestamp() 
-          });
-        }
-        setUserProfile(data as any);
+        // Set state directly with forced admin subscription, avoiding a recursive/looping updateDoc write inside the onSnapshot callback
+        setUserProfile({
+          ...data,
+          isSubscribed: isAdmin || data.isSubscribed,
+          subscriptionType: isAdmin ? 'lifetime' : data.subscriptionType
+        } as any);
       } else {
         const initialProfile = {
           favoritesCount: 0,
@@ -252,6 +274,7 @@ export default function App() {
       const idealSpeed = Math.round(estimatedHeight / Math.max(60, estimatedSecs));
       const clampedSpeed = Math.max(10, Math.min(50, idealSpeed));
       
+      isAutoAdjustingScrollSpeedRef.current = true;
       setScrollSpeed(clampedSpeed);
     }
   }, [song]);
@@ -267,6 +290,10 @@ export default function App() {
 
     // If user is logged in and remote preferences have synced initially, update Firestore on changes
     if (user && userProfile && isPreferencesLoaded && db) {
+      if (isAutoAdjustingScrollSpeedRef.current) {
+        isAutoAdjustingScrollSpeedRef.current = false;
+        return;
+      }
       const currentRemotePrefs = (userProfile as any).preferences || {};
       const hasChanges = 
         currentRemotePrefs.fontSize !== fontSize ||

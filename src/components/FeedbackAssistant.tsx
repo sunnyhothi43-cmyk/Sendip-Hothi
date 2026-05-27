@@ -2,8 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, Sparkles, Check, Server, Github, Smartphone, HelpCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from '@google/genai';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  db, 
+  auth, 
+  handleFirestoreError, 
+  OperationType,
+  collection,
+  addDoc,
+  serverTimestamp
+} from '../lib/firebase';
 
 interface Message {
   id: string;
