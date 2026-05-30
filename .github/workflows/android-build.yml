@@ -39,13 +39,6 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-
-      - name: Repair and Regenerate Pristine Gradle Wrapper
-        run: |
-          cd android
-          gradle wrapper --gradle-version 8.7
 
       - name: Grant Execute Permissions for Gradlew
         run: chmod +x android/gradlew
