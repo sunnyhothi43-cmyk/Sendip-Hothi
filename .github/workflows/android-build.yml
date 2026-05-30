@@ -37,6 +37,13 @@ jobs:
       - name: Sync Capacitor Android Project
         run: npx cap sync android
 
+      - name: Repair and Download Pristine Gradle Wrapper files
+        run: |
+          mkdir -p android/gradle/wrapper
+          curl -fL -o android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/wrapper-validation-action/main/gradle/wrapper/gradle-wrapper.jar
+          curl -fL -o android/gradlew https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradlew
+          curl -fL -o android/gradlew.bat https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradlew.bat
+
       - name: Grant Execute Permissions for Gradlew
         run: chmod +x android/gradlew
 
