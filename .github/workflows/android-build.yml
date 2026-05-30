@@ -39,9 +39,19 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+          build-root-directory: android
 
-      - name: Grant Execute Permissions for Gradlew
-        run: chmod +x android/gradlew
+      - name: Regenerate Pristine Gradle Wrapper
+        run: |
+          cd android
+          gradle wrapper --gradle-version 8.7
+
+      - name: Fix Line Endings and Grant Execute Permissions for Gradlew
+        run: |
+          sed -i 's/\r$//' android/gradlew
+          chmod +x android/gradlew
 
       - name: Clean build folders to remove obsolete cache and old assets
         run: |
