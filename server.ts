@@ -3,11 +3,31 @@ import { createServer as createViteServer } from 'vite';
 import Stripe from 'stripe';
 import path from 'path';
 import dotenv from 'dotenv';
+import { GoogleGenAI, Type } from "@google/genai";
 
 dotenv.config();
 
 let currentKey: string | null = null;
 let stripeClient: Stripe | null = null;
+let aiClient: GoogleGenAI | null = null;
+
+function getGemini(): GoogleGenAI {
+  if (!aiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error('GEMINI_API_KEY environment variable is required. Please check your system configuration.');
+    }
+    aiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return aiClient;
+}
 
 function getSanitizedKey(): string {
   const rawKey = process.env.STRIPE_SECRET_KEY;
@@ -89,6 +109,200 @@ async function startServer() {
         lifetime: process.env.VITE_STRIPE_LIFETIME_PRICE_ID || '',
       }
     });
+  });
+
+  // API Route: Song Data generator (Secure Proxy)
+  app.post('/api/song-data', async (req, res) => {
+    const { songQuery } = req.body;
+    if (!songQuery) {
+      return res.status(400).json({ error: 'Missing songQuery parameter' });
+    }
+    try {
+      const ai = getGemini();
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: `Retrieve the COMPLETE guitar chords and lyrics for the song: "${songQuery}". 
+        CRITICAL: Provide the ENTIRE song from start to finish. Include EVERY verse, chorus, bridge, and outro. 
+        STRICT PROHIBITION: 
+        - NO placeholders like "(Repeat Chorus)". 
+        - NO truncated sections. 
+        - NO summarizing. 
+        If a chorus repeats 3 times, you MUST output the full chords and lyrics for all 3 occurrences.
+        MANDATORY: Include chords for the Intro and any Instrumental sections (Solos/Outros). If no lyrics exist for a section, provide the chord progression in brackets (e.g., [G] [Em] [C] [D]).
+        Place chords in brackets like [C] or [Am7] at the PRECISE column where the chord change occurs in the lyrics.
+        Include a "strummingPattern" as a string using D, U, and - (e.g., "D-D-DU-DU" or "D---D---DU-U-DU-U").
+        Ensure the output is valid JSON according to the schema.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              artist: { type: Type.STRING },
+              originalKey: { type: Type.STRING },
+              suggestedTempo: { type: Type.NUMBER },
+              strummingPattern: { type: Type.STRING },
+              sections: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    lines: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING }
+                    }
+                  },
+                  required: ["name", "lines"]
+                }
+              }
+            },
+            required: ["title", "artist", "originalKey", "suggestedTempo", "sections", "strummingPattern"]
+          }
+        }
+      });
+
+      const text = response?.text || "";
+      if (!text) throw new Error("No data received from Gemini");
+      res.json(JSON.parse(text));
+    } catch (error: any) {
+      console.error("Gemini /api/song-data error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // API Route: Search songs matches
+  app.post('/api/search-songs', async (req, res) => {
+    const { query } = req.body;
+    if (!query) {
+      return res.status(400).json({ error: 'Missing query parameter' });
+    }
+    try {
+      const ai = getGemini();
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: `The user searched for: "${query}". 
+        Analyze this query and return a list of 8-12 relevant song matches.
+        
+        BE RELAXED AND HELPFUL:
+        - If it's an artist name, return their top 10 acoustic/guitar-friendly hits.
+        - If it's a song title, return the most likely version and similar/related songs.
+        - If it's a genre or mood, return popular matches.
+        - If there's a typo, try to guess what they meant.
+        - Even if the query is vague, suggest popular guitar classics.
+        
+        Format the response as a JSON object with a "results" array. Each item must have "title" and "artist".`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              results: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    artist: { type: Type.STRING }
+                  },
+                  required: ["title", "artist"]
+                }
+              }
+            },
+            required: ["results"]
+          }
+        }
+      });
+
+      const text = response?.text || "";
+      if (!text) return res.json([]);
+      const data = JSON.parse(text);
+      res.json(data.results || []);
+    } catch (error: any) {
+      console.warn("Gemini /api/search-songs error:", error);
+      res.json([]);
+    }
+  });
+
+  // API Route: Recommendations
+  app.post('/api/recommendations', async (req, res) => {
+    const { artists } = req.body;
+    if (!artists || !Array.isArray(artists)) {
+      return res.status(400).json({ error: 'Missing artists list' });
+    }
+    try {
+      const ai = getGemini();
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: `Based on these favorite artists: ${artists.join(", ")}, suggest 25 similar songs that are popular but also generally easy to play on acoustic guitar (basic open chords).
+        Return a list of song objects with 'title' and 'artist' keys.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              recommendations: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    artist: { type: Type.STRING }
+                  },
+                  required: ["title", "artist"]
+                }
+              }
+            },
+            required: ["recommendations"]
+          }
+        }
+      });
+
+      const text = response?.text || "";
+      if (!text) return res.json([]);
+      const data = JSON.parse(text);
+      res.json(data.recommendations || []);
+    } catch (error: any) {
+      console.warn("Gemini /api/recommendations error:", error);
+      res.json([]);
+    }
+  });
+
+  // API Route: Chord Fingering
+  app.post('/api/chord-fingering', async (req, res) => {
+    const { chord } = req.body;
+    if (!chord) {
+      return res.status(400).json({ error: 'Missing chord parameter' });
+    }
+    try {
+      const ai = getGemini();
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: `Provide the guitar fingering for the chord "${chord}" in standard tuning.
+        Prioritize an easy-to-play open position if possible.
+        Return the data in this JSON format: { "frets": [E, A, D, G, B, e], "fingers": [E, A, D, G, B, e], "barres": [] }.
+        Use -1 for muted strings and 0 for open strings. Fingers are 1-4.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              frets: { type: Type.ARRAY, items: { type: Type.INTEGER } },
+              fingers: { type: Type.ARRAY, items: { type: Type.INTEGER } },
+              barres: { type: Type.ARRAY, items: { type: Type.INTEGER } },
+            },
+            required: ["frets", "fingers"],
+          },
+        },
+      });
+
+      const text = response?.text || "";
+      if (!text) return res.json(null);
+      res.json(JSON.parse(text));
+    } catch (error: any) {
+      console.error("Gemini /api/chord-fingering error:", error);
+      res.json(null);
+    }
   });
 
   // API Route: Create Checkout Session
