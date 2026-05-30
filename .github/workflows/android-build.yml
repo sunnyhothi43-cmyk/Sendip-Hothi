@@ -40,6 +40,10 @@ jobs:
       - name: Generate Pristine Gradle Wrapper Jar
         run: |
           cd android
+          rm -f gradle/wrapper/gradle-wrapper.jar
+          rm -f gradle/wrapper/gradle-wrapper.properties
+          rm -f gradlew
+          rm -f gradlew.bat
           gradle wrapper --gradle-version 8.7 --distribution-type all
 
       - name: Grant Execute Permissions for Gradlew
