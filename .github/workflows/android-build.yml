@@ -42,10 +42,12 @@ jobs:
           sed -i 's/\r$//' android/gradlew
           chmod +x android/gradlew
 
+      - name: Ensure Pristine Gradle Wrapper
+        run: |
+          wget -O android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          validate-wrappers: false
 
       - name: Clean build folders to remove obsolete cache and old assets
         run: |
