@@ -82,7 +82,7 @@ function checkStripeKey(key: string | undefined) {
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = 3000;
 
   app.use(express.json());
 
@@ -302,6 +302,44 @@ async function startServer() {
     } catch (error: any) {
       console.error("Gemini /api/chord-fingering error:", error);
       res.json(null);
+    }
+  });
+
+  // API Route: Feedback Chat agent handler
+  app.post('/api/feedback-chat', async (req, res) => {
+    const { message, category, docId } = req.body;
+    try {
+      const ai = getGemini();
+      const systemPrompt = `You are the Chordstream Supportive Developer Advocate AI Agent. 
+      Your primary duty is to listen to the user's software feedback, bug reports, feature requests, or song requests regarding Chordstream (the hands-free guitar songbook app with key transpositions and chord placement).
+      
+      Currently, the user's message is being logged with Category: "${category || 'general'}".
+      ${docId ? `Perfect! This ticket is logged successfully in Firestore under Document ID: "${docId}".` : `We are running locally; the feedback will be saved to their account.`}
+
+      BE SURE TO EXPLAIN CLEARLY OF THE FLOW:
+      1. Their feedback is now permanently recorded in our Firestore database.
+      2. Sunny (our active AI Coding Agent inside Google AI Studio) monitors this collection in real-time.
+      3. Once Sunny notices a bug sheet or request, Sunny writes physical code fixes to correct the errors, checks the app builds, and pushes a commit directly to GitHub.
+      4. GitHub Actions immediately builds the new Android bundle (AAB/APK) from the master branch ready for Google Play Store delivery.
+
+      Be warm, helpful, positive, and technically reassuring. Answer any guitar, chords, transposition, or software troubleshooting questions they have eloquently. Keep formatting clean.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [
+          { text: `User message: "${message}"\nCategory: "${category || 'general'}"` }
+        ],
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.7
+        }
+      });
+
+      const text = response?.text || "Your feedback was logged. Our engineering team is on manual review!";
+      res.json({ text });
+    } catch (error: any) {
+      console.error("Gemini /api/feedback-chat error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

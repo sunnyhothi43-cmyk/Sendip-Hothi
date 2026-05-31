@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, Sparkles, Check, Server, Github, Smartphone, HelpCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI } from '@google/genai';
 import { 
   db, 
   auth, 
@@ -45,26 +44,6 @@ export function FeedbackAssistant() {
     }
   }, [messages, isLoading, isOpen]);
 
-  // Instantiate Gemini safely
-  const getGeminiClient = (): GoogleGenAI | null => {
-    try {
-      const key = process.env.GEMINI_API_KEY;
-      if (key && !key.includes('***') && !key.includes('...') && key.trim() !== '') {
-        return new GoogleGenAI({ 
-          apiKey: key.trim(),
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            }
-          }
-        });
-      }
-    } catch (e) {
-      console.warn("FeedbackAssistant: Failed to initialize Gemini API", e);
-    }
-    return null;
-  };
-
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
@@ -107,47 +86,23 @@ export function FeedbackAssistant() {
     }
 
     try {
-      const aiClient = getGeminiClient();
       let replyText = "";
 
-      if (aiClient) {
-        // Query server/client-side Gemini
-        const systemPrompt = `You are the Chordstream Supportive Developer Advocate AI Agent. 
-        Your primary duty is to listen to the user's software feedback, bug reports, feature requests, or song requests regarding Chordstream (the hands-free guitar songbook app with key transpositions and chord placement).
-        
-        Currently, the user's message is being logged with Category: "${currentCategory}".
-        ${firestoreDocId ? `Perfect! This ticket is logged successfully in Firestore under Document ID: "${firestoreDocId}".` : `We are running locally; the feedback will be saved to their account.`}
+      const response = await fetch('/api/feedback-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsgText,
+          category: currentCategory,
+          docId: firestoreDocId
+        })
+      });
 
-        BE SURE TO EXPLAIN CLEARLY OF THE FLOW:
-        1. Their feedback is now permanently recorded in our Firestore database.
-        2. Sunny (our active AI Coding Agent inside Google AI Studio) monitors this collection in real-time.
-        3. Once Sunny notices a bug sheet or request, Sunny writes physical code fixes to correct the errors, checks the app builds, and pushes a commit directly to GitHub.
-        4. GitHub Actions immediately builds the new Android bundle (AAB/APK) from the master branch ready for Google Play Store delivery.
-
-        Be warm, helpful, positive, and technically reassuring. Answer any guitar, chords, transposition, or software troubleshooting questions they have eloquently. Keep formatting clean.`;
-
-        const response = await aiClient.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: [
-            { text: `User message: "${userMsgText}"\nCategory: "${currentCategory}"` }
-          ],
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.7
-          }
-        });
-
-        replyText = response.text || "Your feedback was logged, but I didn't receive a detailed response. Our engineering team is on manual review!";
+      if (response.ok) {
+        const data = await response.json();
+        replyText = data.text;
       } else {
-        // Fallback simulated reply if no valid API key is present
-        replyText = `Thank you for your feedback! I have successfully logged your [${currentCategory.toUpperCase()}] ticket${firestoreDocId ? ` (ID: ${firestoreDocId})` : ""} in our Firestore database. 
-
-Since the Gemini developers are working in a sandbox, here is how Sunny (the Google AI Studio developer agent) handles your ticket:
-1. **Real-time Synchronization**: Your message is captured in our Firestore ledger.
-2. **Workspace Diagnostics**: Our coding agent on Google AI Studio pulls active issues, writes clean layout/code corrections, and runs tests.
-3. **Automated Android Deployment**: Once resolved, we push the fixed code to GitHub, where GitHub Actions automatically builds the release AAB/APK bundle for Google Play Store!
-
-Your input helps us build Chordstream into the ultimate hands-free songbook!`;
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       setMessages(prev => [...prev, {
