@@ -49,6 +49,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
+          build-root-directory: android
           wrapper-validation-enabled: false
 
       - name: Clean build folders to remove obsolete cache and old assets
