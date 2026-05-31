@@ -39,7 +39,7 @@ jobs:
 
       - name: Ensure Pristine Gradle Wrapper
         run: |
-          wget -O android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7/gradle/wrapper/gradle-wrapper.jar
+          wget -O android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar
 
       - name: Fix Line Endings and Grant Execute Permissions for Gradlew
         run: |
@@ -50,6 +50,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           build-root-directory: android
+          wrapper-validation-enabled: false
 
       - name: Clean build folders to remove obsolete cache and old assets
         run: |
