@@ -37,20 +37,19 @@ jobs:
       - name: Sync Capacitor Android Project
         run: npx cap sync android
 
+      - name: Ensure Pristine Gradle Wrapper
+        run: |
+          wget -O android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7/gradle/wrapper/gradle-wrapper.jar
+
       - name: Fix Line Endings and Grant Execute Permissions for Gradlew
         run: |
           sed -i 's/\r$//' android/gradlew
           chmod +x android/gradlew
 
-      - name: Ensure Pristine Gradle Wrapper
-        run: |
-          wget -O android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           build-root-directory: android
-          wrapper-validation-enabled: false
 
       - name: Clean build folders to remove obsolete cache and old assets
         run: |
