@@ -251,10 +251,12 @@ export default function App() {
     }
   }, [userProfile, user]);
 
-  // Reset preferences loaded status when user signs out
+  // Reset preferences loaded status when a user logs in (to wait for their Firestore profile sync)
   useEffect(() => {
-    if (!user) {
+    if (user) {
       setIsPreferencesLoaded(false);
+    } else {
+      setIsPreferencesLoaded(true);
     }
   }, [user]);
 
@@ -591,10 +593,15 @@ export default function App() {
   // Combined library view
   const displayLibrary = useMemo(() => {
     const raw = user ? library : localLibrary;
-    return [...raw].sort((a, b) => {
-      const artistComp = a.artist.localeCompare(b.artist);
+    if (!Array.isArray(raw)) return [];
+    return [...raw].filter(Boolean).sort((a, b) => {
+      const aArtist = a.artist || '';
+      const bArtist = b.artist || '';
+      const artistComp = aArtist.localeCompare(bArtist);
       if (artistComp !== 0) return artistComp;
-      return a.title.localeCompare(b.title);
+      const aTitle = a.title || '';
+      const bTitle = b.title || '';
+      return aTitle.localeCompare(bTitle);
     });
   }, [user, library, localLibrary]);
 
@@ -845,10 +852,14 @@ export default function App() {
     try {
       const recs = await fetchRecommendations(artists);
       // Ensure we have unique suggestions that aren't already in library
-    const sorted = [...recs].sort((a, b) => {
-        const artistComp = a.artist.localeCompare(b.artist);
+      const sorted = [...recs].filter(Boolean).sort((a, b) => {
+        const aArtist = a.artist || '';
+        const bArtist = b.artist || '';
+        const artistComp = aArtist.localeCompare(bArtist);
         if (artistComp !== 0) return artistComp;
-        return a.title.localeCompare(b.title);
+        const aTitle = a.title || '';
+        const bTitle = b.title || '';
+        return aTitle.localeCompare(bTitle);
       });
       // Ensure we have unique suggestions that aren't already in library or preloaded
       const filtered = sorted.filter(rec => {
