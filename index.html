@@ -9,6 +9,127 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="apple-touch-icon" href="/icons/icon-512x512.png" />
+    <script>
+      window.addEventListener('error', function(e) {
+        showGlobalCrashDiagnostics(e.message || 'Script error', e.filename, e.lineno, e.colno, e.error);
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(e) {
+        showGlobalCrashDiagnostics(e.reason?.message || 'Unhandled Promise Rejection', '', 0, 0, e.reason);
+      });
+
+      function showGlobalCrashDiagnostics(message, filename, lineno, colno, error) {
+        // Prevent multiple overlays
+        if (document.getElementById('crash-overlay')) return;
+        
+        var overlay = document.createElement('div');
+        overlay.id = 'crash-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.backgroundColor = '#0F0F11';
+        overlay.style.color = '#E0E0E0';
+        overlay.style.fontFamily = 'monospace';
+        overlay.style.padding = '24px';
+        overlay.style.zIndex = '999999';
+        overlay.style.overflowY = 'auto';
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+
+        var content = document.createElement('div');
+        content.style.maxWidth = '600px';
+        content.style.width = '100%';
+        content.style.backgroundColor = '#1A1A1E';
+        content.style.border = '1px solid #FF4444';
+        content.style.borderRadius = '12px';
+        content.style.padding = '24px';
+        content.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+
+        var title = document.createElement('h2');
+        title.innerText = 'CRITICAL RUNTIME ERROR DETECTED';
+        title.style.color = '#FF4444';
+        title.style.marginTop = '0';
+        title.style.fontSize = '16px';
+        title.style.fontWeight = 'black';
+        title.style.letterSpacing = '1px';
+        content.appendChild(title);
+
+        var p = document.createElement('p');
+        p.innerText = 'The application encountered an error during bootstrap or module evaluation. Diagnostic info:';
+        p.style.fontSize = '12px';
+        p.style.color = '#AAAAAA';
+        content.appendChild(p);
+
+        var codeBlock = document.createElement('pre');
+        codeBlock.style.backgroundColor = 'rgba(0,0,0,0.3)';
+        codeBlock.style.padding = '12px';
+        codeBlock.style.borderRadius = '6px';
+        codeBlock.style.fontSize = '12px';
+        codeBlock.style.color = '#FF8888';
+        codeBlock.style.whiteSpace = 'pre-wrap';
+        codeBlock.style.wordBreak = 'break-all';
+
+        var details = 'Error: ' + message + '\n';
+        if (filename) details += 'File: ' + filename + '\n';
+        if (lineno) details += 'Line: ' + lineno + ' | Col: ' + colno + '\n';
+        if (error && error.stack) {
+          details += '\nStack Trace:\n' + error.stack;
+        } else if (error) {
+          details += '\nDetails: ' + JSON.stringify(error);
+        }
+        codeBlock.innerText = details;
+        content.appendChild(codeBlock);
+
+        var btnContainer = document.createElement('div');
+        btnContainer.style.display = 'flex';
+        btnContainer.style.gap = '12px';
+        btnContainer.style.marginTop = '20px';
+
+        var reloadBtn = document.createElement('button');
+        reloadBtn.innerText = 'FORCE RELOAD';
+        reloadBtn.style.backgroundColor = '#D97706';
+        reloadBtn.style.color = 'black';
+        reloadBtn.style.border = 'none';
+        reloadBtn.style.padding = '10px 16px';
+        reloadBtn.style.borderRadius = '6px';
+        reloadBtn.style.fontWeight = 'bold';
+        reloadBtn.style.cursor = 'pointer';
+        reloadBtn.onclick = function() {
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                regs.forEach(function(r) { r.unregister(); });
+              });
+            }
+          } catch(e){}
+          window.location.reload(true);
+        };
+        btnContainer.appendChild(reloadBtn);
+
+        var bypassBtn = document.createElement('button');
+        bypassBtn.innerText = 'DISMISS';
+        bypassBtn.style.backgroundColor = '#2E2E35';
+        bypassBtn.style.color = 'white';
+        bypassBtn.style.border = 'none';
+        bypassBtn.style.padding = '10px 16px';
+        bypassBtn.style.borderRadius = '6px';
+        bypassBtn.style.cursor = 'pointer';
+        bypassBtn.onclick = function() {
+          overlay.remove();
+        };
+        btnContainer.appendChild(bypassBtn);
+
+        content.appendChild(btnContainer);
+        overlay.appendChild(content);
+        document.body.appendChild(overlay);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

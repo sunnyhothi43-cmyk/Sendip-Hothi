@@ -9,6 +9,13 @@ export const PRELOADED_SONGS: SongData[] = [
     strummingPattern: "D-D-D-DD",
     sections: [
       {
+        name: "Intro",
+        lines: [
+          "[D] (Acoustic slide guitar theme with sitar accompaniment)",
+          "[D] [D]"
+        ]
+      },
+      {
         name: "Verse 1",
         lines: [
           "[D]In the time of chimpanzees I was a monkey",
@@ -26,7 +33,9 @@ export const PRELOADED_SONGS: SongData[] = [
         lines: [
           "Soy un per[D]dedor",
           "I'm a loser baby, so why don't you kill me?",
-          "(Double-barrel buckshot)"
+          "[D](Double-barrel buckshot)",
+          "Soy un per[D]dedor",
+          "I'm a loser baby, so why don't you kill me?"
         ]
       },
       {
@@ -46,7 +55,9 @@ export const PRELOADED_SONGS: SongData[] = [
         lines: [
           "Soy un per[D]dedor",
           "I'm a loser baby, so why don't you kill me?",
-          "(I can't believe you)"
+          "[D](I can't believe you)",
+          "Soy un per[D]dedor",
+          "I'm a loser baby, so why don't you kill me?"
         ]
       },
       {
@@ -63,7 +74,8 @@ export const PRELOADED_SONGS: SongData[] = [
       {
         name: "Bridge",
         lines: [
-          "(Keep on knocking if you've got a dirty mind)"
+          "[D] (Keep on knocking if you've got a dirty mind)",
+          "[D] (Spoken over sitar and slide guitar feedback)"
         ]
       },
       {
@@ -71,7 +83,9 @@ export const PRELOADED_SONGS: SongData[] = [
         lines: [
           "Soy un per[D]dedor",
           "I'm a loser baby, so why don't you kill me?",
-          "(Shotgun)"
+          "[D](Shotgun)",
+          "Soy un per[D]dedor",
+          "I'm a loser baby, so why don't you kill me?"
         ]
       },
       {

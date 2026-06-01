@@ -1666,12 +1666,36 @@ export default function App() {
 
                   <button 
                     onClick={handlePrint}
-                    className="p-1.5 rounded-full bg-neutral-800 text-neutral-400 hover:text-amber-500 transition-all shadow-lg print:hidden flex items-center gap-2 px-3"
+                    className="p-1.5 rounded-full bg-neutral-800 text-neutral-400 hover:text-amber-500 transition-all shadow-lg print:hidden flex items-center gap-2 px-3 hover:cursor-pointer"
                     title="Print to PDF (A4 Layout)"
                   >
                     <Printer className="w-4 h-4" />
                     <span className="text-[10px] font-black uppercase tracking-widest leading-none">Print PDF</span>
                   </button>
+
+                  {/* Compact Scroll Speed Controller next to song actions */}
+                  <div className="flex items-center bg-neutral-900 border border-[#333] rounded-full p-0.5 shadow-md h-[32px] font-sans print:hidden shrink-0 select-none ml-1">
+                    <button 
+                      onClick={() => setScrollSpeed(prev => Math.max(5, prev - 2))}
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer flex items-center justify-center rounded-full"
+                      title="Slower Scroll Speed"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="flex items-center gap-1 px-1 min-w-[50px] justify-center">
+                      <span className="text-[7px] font-black text-neutral-500 uppercase tracking-tighter leading-none">Speed</span>
+                      <span className="text-xs font-bold text-amber-500 font-mono leading-none">
+                        {scrollSpeed}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => setScrollSpeed(prev => Math.min(100, prev + 2))}
+                      className="p-1 px-1.5 hover:text-amber-500 transition-colors text-neutral-500 cursor-pointer flex items-center justify-center rounded-full"
+                      title="Faster Scroll Speed"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
               
@@ -2338,17 +2362,17 @@ export default function App() {
                 {isScrolling ? <><Pause className="w-3 h-3" /> Stop</> : <><Play className="w-3 h-3" /> Auto Scroll</>}
               </button>
 
-              <div className="flex items-center gap-1.5 md:gap-3">
+               <div className="flex items-center gap-1.5 md:gap-3">
                 <button 
                   onClick={() => setIsScrollControlsExpanded(!isScrollControlsExpanded)}
                   className={cn(
                     "p-2 rounded-full transition-all text-neutral-400 hover:text-white hover:bg-neutral-900 border border-transparent cursor-pointer flex items-center gap-1",
                     isScrollControlsExpanded && "bg-neutral-900 text-amber-500 border-neutral-800"
                   )}
-                  title="Scroll Settings & Speed"
+                  title="Scroll Settings"
                 >
                   <Settings className={cn("w-4 h-4 transition-transform duration-300", isScrollControlsExpanded && "rotate-45")} />
-                  <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">Speed</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">Focus</span>
                 </button>
 
                 <div className="h-5 w-px bg-neutral-800 hidden md:block" />
@@ -2375,52 +2399,19 @@ export default function App() {
               </div>
             </div>
 
-            {/* Expanded section (Speed changer & Sight Guide Toggle) */}
+            {/* Expanded section (Sight Guide Toggle only for ultimate tightness) */}
             {isScrollControlsExpanded && (
               <motion.div 
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-3 pt-3 border-t border-neutral-900 space-y-3.5"
+                className="mt-3 pt-3 border-t border-neutral-900"
               >
-                {/* Scroll speed slider row */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-[9px] font-black text-neutral-500 uppercase tracking-widest leading-none">Scroll Speed</span>
-                    <span className="text-[10px] font-mono font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded leading-none">{scrollSpeed}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setScrollSpeed(Math.max(5, scrollSpeed - 2))} 
-                      className="p-1 px-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer"
-                      title="Decrease Speed"
-                    >
-                      <ArrowDown className="w-3 h-3" />
-                    </button>
-                    <input 
-                      type="range" 
-                      min="5" 
-                      max="100" 
-                      step="1" 
-                      value={scrollSpeed} 
-                      onChange={(e) => setScrollSpeed(parseInt(e.target.value))} 
-                      className="flex-1 accent-amber-500 cursor-pointer h-1.5 rounded-full bg-neutral-900" 
-                    />
-                    <button 
-                      onClick={() => setScrollSpeed(Math.min(100, scrollSpeed + 2))} 
-                      className="p-1 px-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer"
-                      title="Increase Speed"
-                    >
-                      <ArrowUp className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-
                 {/* Sight Reading Guide Toggler */}
                 <div className="flex items-center justify-between bg-neutral-900/60 p-2 rounded-xl border border-neutral-900">
                   <div className="flex flex-col text-left">
                     <span className="text-[9px] font-black text-neutral-400 uppercase tracking-wider leading-none mb-0.5">Focus Sight Line</span>
-                    <span className="text-[8px] text-neutral-500 leading-none">Keeps your eyes centered on the current line</span>
+                    <span className="text-[8px] text-neutral-500 leading-none font-medium">Keeps your eyes centered on the current line</span>
                   </div>
                   <button 
                     onClick={() => {
@@ -2462,7 +2453,7 @@ export default function App() {
         selectedPlanId={selectedPlanId}
         setSelectedPlanId={setSelectedPlanId}
       />
-      <FeedbackAssistant />
+      <FeedbackAssistant isSongActive={!!song} />
     </div>
   );
 }

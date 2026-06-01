@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, Sparkles, Check, Server, Github, Smartphone, HelpCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
 import { 
   db, 
   auth, 
@@ -18,7 +19,11 @@ interface Message {
   timestamp: Date;
 }
 
-export function FeedbackAssistant() {
+interface FeedbackAssistantProps {
+  isSongActive?: boolean;
+}
+
+export function FeedbackAssistant({ isSongActive = false }: FeedbackAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -126,17 +131,24 @@ export function FeedbackAssistant() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] font-sans">
+    <div 
+      className={cn(
+        "fixed z-[100] font-sans transition-all duration-300",
+        isSongActive 
+          ? "top-18 right-3 md:bottom-6 md:right-6" 
+          : "bottom-4 right-4 md:bottom-6 md:right-6"
+      )}
+    >
       {/* Floating Sparkle Action Button */}
       <motion.button
         id="btn-feedback-trigger"
         onClick={() => setIsOpen(!isOpen)}
-        whileHover={{ scale: 1.08 }}
+        whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className="flex items-center gap-2 px-4 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-neutral-950 font-black rounded-full shadow-[0_0_25px_rgba(245,158,11,0.35)] cursor-pointer group uppercase tracking-widest text-xs select-none border border-amber-400/30"
+        className="flex items-center justify-center w-8 h-8 bg-neutral-950/70 hover:bg-neutral-900 border border-neutral-800/40 rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.4)] cursor-pointer group select-none transition-all duration-150"
+        title="Open Support Assistant"
       >
-        <Sparkles className="w-4 h-4 animate-pulse group-hover:rotate-12 transition-transform duration-300" />
-        <span>Dev Support Agent</span>
+        <Sparkles className="w-3.5 h-3.5 text-amber-500/80 group-hover:rotate-12 transition-transform duration-200" />
       </motion.button>
 
       {/* Slide-out Overlay Sidebar Panel */}

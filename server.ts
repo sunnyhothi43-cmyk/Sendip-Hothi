@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import Stripe from 'stripe';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -130,15 +131,16 @@ async function startServer() {
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
         contents: `Retrieve the COMPLETE guitar chords and lyrics for the song: "${songQuery}". 
-        CRITICAL: Provide the ENTIRE song from start to finish. Include EVERY verse, chorus, bridge, and outro. 
+        CRITICAL: Provide the ENTIRE song from start to finish. Include EVERY verse, chorus, bridge, outro, and instrumental section.
         STRICT PROHIBITION: 
-        - NO placeholders like "(Repeat Chorus)". 
-        - NO truncated sections. 
-        - NO summarizing. 
-        If a chorus repeats 3 times, you MUST output the full chords and lyrics for all 3 occurrences.
-        MANDATORY: Include chords for the Intro and any Instrumental sections (Solos/Outros). If no lyrics exist for a section, provide the chord progression in brackets (e.g., [G] [Em] [C] [D]).
-        Place chords in brackets like [C] or [Am7] at the PRECISE column where the chord change occurs in the lyrics.
-        Include a "strummingPattern" as a string using D, U, and - (e.g., "D-D-DU-DU" or "D---D---DU-U-DU-U").
+        - NEVER abbreviate, summarize, or truncate any parts.
+        - NEVER use placeholders like "(Repeat Chorus)", "(Chorus 1x)", etc.
+        - NEVER omit repeating sections. If the Chorus is sung 3 times, you MUST output the full chords and lyrics for ALL 3 occurrences separately.
+        - NEVER leave section lists empty. Every named section must have full lyric lines with chords.
+        MANDATORY: 
+        - Include chords for the Intro and any Instrumental sections (Solos/Outros). If no lyrics exist for a section, provide the chord progression in brackets (e.g. "[G] [Em] [C] [D]" as lines).
+        - Place chords in brackets like [C] or [Am7] at the PRECISE column where the chord change occurs in the lyrics.
+        - Include a "strummingPattern" as a string using D, U, and - (e.g., "D-D-DU-DU" or "D---D---DU-U-DU-U").
         Ensure the output is valid JSON according to the schema.`,
         config: {
           responseMimeType: "application/json",
@@ -455,15 +457,24 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[SERVER] Running in DEVELOPMENT mode. Mounting Vite dev middleware.');
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasBuild = fs.existsSync(path.join(distPath, 'index.html'));
+
+  // Detect if we are running in development mode.
+  // We check if NODE_ENV is not production, OR if we are executing server.ts directly (not the built dist/server.cjs).
+  const entryScript = process.argv[1] || '';
+  const isDevMode = process.env.NODE_ENV !== 'production' || 
+                     entryScript.endsWith('.ts') || 
+                     !entryScript.includes('dist');
+
+  if (isDevMode || !hasBuild) {
+    console.log('[SERVER] Mounting Vite dev middleware for live compilation.');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     console.log(`[SERVER] Running in PRODUCTION mode. Serving static assets from: ${distPath}`);
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
