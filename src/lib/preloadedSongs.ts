@@ -68,7 +68,13 @@ export const PRELOADED_SONGS: SongData[] = [
           "[D]You get a parking violation and a bird on your shoulder",
           "[D]Keep on knocking on my wood, now, baby",
           "You know what I'm saying?",
-          "[D]Drive-by body-pierce"
+          "People dance, but they don't know what they're saying",
+          "With the [D]plastic eyeballs, spray-paint the vegetables",
+          "Dog food stalls with the beefcake pantyhose",
+          "Clean out the ash tray, sweep it under the rug",
+          "Hot cheese on the tip of the tongue",
+          "Get out of the way of the garbage truck",
+          "Yo, [D]bring it on down"
         ]
       },
       {
@@ -97,9 +103,12 @@ export const PRELOADED_SONGS: SongData[] = [
           "Yo, bring it on down",
           "Get out of the way of the garbage truck",
           "Hot cheese on the tip of the tongue",
-          "Soy un per[D]dedor...",
+          "Soy un per[D]dedor",
           "I'm a loser baby, so why don't you kill me?",
-          "(Double-barrel buckshot)"
+          "Soy un per[D]dedor",
+          "I'm a loser baby, so why don't you kill me?",
+          "(Double-barrel buckshot)",
+          "(Sitar fades out over industrial rhythmic beat)"
         ]
       }
     ]

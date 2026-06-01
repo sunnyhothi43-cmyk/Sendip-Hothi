@@ -20,11 +20,11 @@ interface Message {
 }
 
 interface FeedbackAssistantProps {
-  isSongActive?: boolean;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export function FeedbackAssistant({ isSongActive = false }: FeedbackAssistantProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export function FeedbackAssistant({ isOpen, onOpenChange }: FeedbackAssistantProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -131,38 +131,17 @@ export function FeedbackAssistant({ isSongActive = false }: FeedbackAssistantPro
   };
 
   return (
-    <div 
-      className={cn(
-        "fixed z-[100] font-sans transition-all duration-300",
-        isSongActive 
-          ? "top-18 right-3 md:bottom-6 md:right-6" 
-          : "bottom-4 right-4 md:bottom-6 md:right-6"
-      )}
-    >
-      {/* Floating Sparkle Action Button */}
-      <motion.button
-        id="btn-feedback-trigger"
-        onClick={() => setIsOpen(!isOpen)}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="flex items-center justify-center w-8 h-8 bg-neutral-950/70 hover:bg-neutral-900 border border-neutral-800/40 rounded-full shadow-[0_4px_16px_rgba(0,0,0,0.4)] cursor-pointer group select-none transition-all duration-150"
-        title="Open Support Assistant"
-      >
-        <Sparkles className="w-3.5 h-3.5 text-amber-500/80 group-hover:rotate-12 transition-transform duration-200" />
-      </motion.button>
-
-      {/* Slide-out Overlay Sidebar Panel */}
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110]"
-            />
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => onOpenChange(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110]"
+          />
 
             {/* Panel */}
             <motion.div
@@ -186,7 +165,7 @@ export function FeedbackAssistant({ isSongActive = false }: FeedbackAssistantPro
                 </div>
                 <button
                   id="btn-close-feedback"
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => onOpenChange(false)}
                   className="p-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white rounded-md transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -409,9 +388,8 @@ export function FeedbackAssistant({ isSongActive = false }: FeedbackAssistantPro
               </div>
 
             </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }

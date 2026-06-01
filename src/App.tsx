@@ -115,6 +115,7 @@ export default function App() {
   });
   const [isScrollControlsExpanded, setIsScrollControlsExpanded] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
 
   const [isEasyMode, setIsEasyMode] = useState(() => {
     return storage.getItem('pref_easy_mode') === 'true';
@@ -1238,6 +1239,15 @@ export default function App() {
           )}
 
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsSupportOpen(true)}
+              className="p-1.5 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-neutral-400 hover:text-amber-500 hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1.5 px-3 shadow-sm group cursor-pointer"
+              title="Open Support Assistant"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
+              <span className="text-[9px] font-black uppercase tracking-widest">Support</span>
+            </button>
+
             <button 
               onClick={() => setIsSettingsOpen(!isSettingsOpen)}
               className="relative p-1.5 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-white hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1.5 px-3 shadow-sm group"
@@ -2453,7 +2463,7 @@ export default function App() {
         selectedPlanId={selectedPlanId}
         setSelectedPlanId={setSelectedPlanId}
       />
-      <FeedbackAssistant isSongActive={!!song} />
+      <FeedbackAssistant isOpen={isSupportOpen} onOpenChange={setIsSupportOpen} />
     </div>
   );
 }
