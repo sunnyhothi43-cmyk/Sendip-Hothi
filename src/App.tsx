@@ -55,6 +55,31 @@ const isSameSong = (s1: { title?: string; artist?: string } | null | undefined, 
          cleanString(s1.artist) === cleanString(s2.artist);
 };
 
+const storage = {
+  getItem: (key: string): string | null => {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      console.warn("Storage access failed: localStorage is unavailable or blocked in this environment.", e);
+      return null;
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.warn("Storage write failed: localStorage is unavailable or blocked in this environment.", e);
+    }
+  },
+  removeItem: (key: string): void => {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      console.warn("Storage removal failed: localStorage is unavailable or blocked in this environment.", e);
+    }
+  }
+};
+
 export default function App() {
   const [query, setQuery] = useState('');
   const [song, setSong] = useState<SongData | null>(null);
@@ -74,25 +99,25 @@ export default function App() {
   const [keyOffset, setKeyOffset] = useState(0);
   const [currentTempo, setCurrentTempo] = useState(0);
   const [scrollSpeed, setScrollSpeed] = useState(() => {
-    return Number(localStorage.getItem('pref_scroll_speed')) || 20;
+    return Number(storage.getItem('pref_scroll_speed')) || 20;
   });
   const [isScrolling, setIsScrolling] = useState(false);
   const [fontSize, setFontSize] = useState(() => {
-    return Number(localStorage.getItem('pref_font_size')) || 15;
+    return Number(storage.getItem('pref_font_size')) || 15;
   }); 
   const [showStrummingPattern, setShowStrummingPattern] = useState(() => {
-    const saved = localStorage.getItem('pref_show_strumming');
+    const saved = storage.getItem('pref_show_strumming');
     return saved === null ? true : saved === 'true';
   });
   const [showSightGuide, setShowSightGuide] = useState(() => {
-    const saved = localStorage.getItem('pref_show_sight_guide');
+    const saved = storage.getItem('pref_show_sight_guide');
     return saved === null ? false : saved === 'true';
   });
   const [isScrollControlsExpanded, setIsScrollControlsExpanded] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [isEasyMode, setIsEasyMode] = useState(() => {
-    return localStorage.getItem('pref_easy_mode') === 'true';
+    return storage.getItem('pref_easy_mode') === 'true';
   });
 
   const setSongWithStrumming = (s: SongData | null) => {
@@ -227,19 +252,19 @@ export default function App() {
       const prefs = (userProfile as any).preferences;
       if (typeof prefs.fontSize === 'number') {
         setFontSize(prefs.fontSize);
-        localStorage.setItem('pref_font_size', String(prefs.fontSize));
+        storage.setItem('pref_font_size', String(prefs.fontSize));
       }
       if (typeof prefs.showStrummingPattern === 'boolean') {
         setShowStrummingPattern(prefs.showStrummingPattern);
-        localStorage.setItem('pref_show_strumming', String(prefs.showStrummingPattern));
+        storage.setItem('pref_show_strumming', String(prefs.showStrummingPattern));
       }
       if (typeof prefs.isEasyMode === 'boolean') {
         setIsEasyMode(prefs.isEasyMode);
-        localStorage.setItem('pref_easy_mode', String(prefs.isEasyMode));
+        storage.setItem('pref_easy_mode', String(prefs.isEasyMode));
       }
       if (typeof prefs.scrollSpeed === 'number') {
         setScrollSpeed(prefs.scrollSpeed);
-        localStorage.setItem('pref_scroll_speed', String(prefs.scrollSpeed));
+        storage.setItem('pref_scroll_speed', String(prefs.scrollSpeed));
       }
       setIsPreferencesLoaded(true);
     } else if (userProfile) {
@@ -284,11 +309,11 @@ export default function App() {
   // Save preferences to localStorage & Firestore when they change
   useEffect(() => {
     // Save to local storage immediately
-    localStorage.setItem('pref_font_size', String(fontSize));
-    localStorage.setItem('pref_show_strumming', String(showStrummingPattern));
-    localStorage.setItem('pref_show_sight_guide', String(showSightGuide));
-    localStorage.setItem('pref_easy_mode', String(isEasyMode));
-    localStorage.setItem('pref_scroll_speed', String(scrollSpeed));
+    storage.setItem('pref_font_size', String(fontSize));
+    storage.setItem('pref_show_strumming', String(showStrummingPattern));
+    storage.setItem('pref_show_sight_guide', String(showSightGuide));
+    storage.setItem('pref_easy_mode', String(isEasyMode));
+    storage.setItem('pref_scroll_speed', String(scrollSpeed));
 
     // If user is logged in and remote preferences have synced initially, update Firestore on changes
     if (user && userProfile && isPreferencesLoaded && db) {
@@ -362,7 +387,7 @@ export default function App() {
     setCheckoutUrl(null);
     
     // Save intended plan to localStorage so we can fulfill it after redirect
-    localStorage.setItem('pending_stripe_plan', selectedPlanId);
+    storage.setItem('pending_stripe_plan', selectedPlanId);
 
     try {
       const response = await fetch('/api/create-checkout-session', {
@@ -492,7 +517,7 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === 'true' && user) {
-      const pendingPlan = localStorage.getItem('pending_stripe_plan') as 'monthly' | 'yearly' | 'lifetime' || 'yearly';
+      const pendingPlan = storage.getItem('pending_stripe_plan') as 'monthly' | 'yearly' | 'lifetime' || 'yearly';
       
       const calculateRenewalDate = (type: string) => {
         const d = new Date();
@@ -514,13 +539,13 @@ export default function App() {
           renewalDate: calculateRenewalDate(pendingPlan),
           updatedAt: serverTimestamp()
         }).then(() => {
-          localStorage.removeItem('pending_stripe_plan');
+          storage.removeItem('pending_stripe_plan');
           // Clear param to avoid re-triggering
           window.history.replaceState({}, document.title, window.location.pathname);
           alert("Thank you! Your subscription is now active.");
         });
       } else {
-        localStorage.removeItem('pending_stripe_plan');
+        storage.removeItem('pending_stripe_plan');
         window.history.replaceState({}, document.title, window.location.pathname);
         alert("Purchase completed! Your account is now active locally.");
       }
@@ -575,7 +600,7 @@ export default function App() {
 
   // Load local library on mount
   useEffect(() => {
-    const saved = localStorage.getItem('chord_guest_library');
+    const saved = storage.getItem('chord_guest_library');
     if (saved) {
       try {
         setLocalLibrary(JSON.parse(saved));
@@ -587,7 +612,7 @@ export default function App() {
 
   // Sync local library to localStorage
   useEffect(() => {
-    localStorage.setItem('chord_guest_library', JSON.stringify(localLibrary));
+    storage.setItem('chord_guest_library', JSON.stringify(localLibrary));
   }, [localLibrary]);
 
   // Combined library view
@@ -609,12 +634,12 @@ export default function App() {
   useEffect(() => {
     if (song && song.sections && song.sections.length > 0) {
       try {
-        const cacheRaw = localStorage.getItem('chord_guest_cache');
+        const cacheRaw = storage.getItem('chord_guest_cache');
         const cache = cacheRaw ? JSON.parse(cacheRaw) : [];
         const exists = cache.some((s: any) => isSameSong(s, song));
         if (!exists) {
           const newCache = [song, ...cache].slice(0, 20);
-          localStorage.setItem('chord_guest_cache', JSON.stringify(newCache));
+          storage.setItem('chord_guest_cache', JSON.stringify(newCache));
         }
       } catch (e) {
         console.error("Cache update failed", e);
@@ -711,7 +736,7 @@ export default function App() {
     // 2. Then check local search cache
     if (!cachedSong) {
       try {
-        const cacheRaw = localStorage.getItem('chord_guest_cache');
+        const cacheRaw = storage.getItem('chord_guest_cache');
         const cache = cacheRaw ? JSON.parse(cacheRaw) : [];
         cachedSong = cache.find((s: any) => 
           `${s.artist} - ${s.title}`.toLowerCase().trim() === normalizedQuery ||
@@ -752,12 +777,12 @@ export default function App() {
 
         // Add to local cache automatically so it's never re-fetched
         try {
-          const cacheRaw = localStorage.getItem('chord_guest_cache');
+          const cacheRaw = storage.getItem('chord_guest_cache');
           const cache = cacheRaw ? JSON.parse(cacheRaw) : [];
           const exists = cache.some((s: any) => isSameSong(s, data));
           if (!exists) {
             const newCache = [data, ...cache].slice(0, 30);
-            localStorage.setItem('chord_guest_cache', JSON.stringify(newCache));
+            storage.setItem('chord_guest_cache', JSON.stringify(newCache));
           }
         } catch (e) {
           console.warn("Auto-cache failed");
@@ -2136,7 +2161,7 @@ export default function App() {
                         onClick={() => {
                           const next = !showSightGuide;
                           setShowSightGuide(next);
-                          localStorage.setItem('pref_show_sight_guide', String(next));
+                          storage.setItem('pref_show_sight_guide', String(next));
                         }}
                         className={cn(
                           "w-10 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer",
@@ -2401,7 +2426,7 @@ export default function App() {
                     onClick={() => {
                       const next = !showSightGuide;
                       setShowSightGuide(next);
-                      localStorage.setItem('pref_show_sight_guide', String(next));
+                      storage.setItem('pref_show_sight_guide', String(next));
                     }}
                     className={cn(
                       "flex items-center gap-1 px-3 py-1.5 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer",

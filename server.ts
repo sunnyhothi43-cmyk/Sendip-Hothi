@@ -84,6 +84,14 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  console.log(`[SERVER] Starting server. process.env.NODE_ENV is: "${process.env.NODE_ENV}"`);
+
+  // Request logger
+  app.use((req, res, next) => {
+    console.log(`[REQUEST] ${req.method} ${req.url} - IP: ${req.ip} - User-Agent: ${req.headers['user-agent']}`);
+    next();
+  });
+
   app.use(express.json());
 
   // Health check endpoint for Cloud Run
@@ -448,6 +456,7 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
+    console.log('[SERVER] Running in DEVELOPMENT mode. Mounting Vite dev middleware.');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -455,8 +464,10 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+    console.log(`[SERVER] Running in PRODUCTION mode. Serving static assets from: ${distPath}`);
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      console.log(`[ROUTE fallback] Sending ${path.join(distPath, 'index.html')} for request: ${req.url}`);
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
