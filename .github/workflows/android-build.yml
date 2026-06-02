@@ -37,8 +37,9 @@ jobs:
       - name: Sync Capacitor Android Project
         run: npx cap sync android
 
-      - name: Fix Line Endings and Grant Execute Permissions for Gradlew
+      - name: Download Pristine Gradle Wrapper JAR and Fix Line Endings
         run: |
+          curl -sSLo android/gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar
           sed -i 's/\r$//' android/gradlew
           chmod +x android/gradlew
 
