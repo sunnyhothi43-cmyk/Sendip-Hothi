@@ -66,15 +66,7 @@ export const PRELOADED_SONGS: SongData[] = [
           "[D]Sprechen Sie Deutsch, baby? Know what I'm saying?",
           "[D]Don't believe everything that you breathe",
           "[D]You get a parking violation and a bird on your shoulder",
-          "[D]Keep on knocking on my wood, now, baby",
-          "You know what I'm saying?",
-          "People dance, but they don't know what they're saying",
-          "With the [D]plastic eyeballs, spray-paint the vegetables",
-          "Dog food stalls with the beefcake pantyhose",
-          "Clean out the ash tray, sweep it under the rug",
-          "Hot cheese on the tip of the tongue",
-          "Get out of the way of the garbage truck",
-          "Yo, [D]bring it on down"
+          "[D]Keep on knocking on my wood, now, baby"
         ]
       },
       {
@@ -98,6 +90,9 @@ export const PRELOADED_SONGS: SongData[] = [
         name: "Outro",
         lines: [
           "[D]Soy un perdedor",
+          "I'm a loser baby, so why don't you kill me?",
+          "(Get crazy with the Cheez Whiz)",
+          "Soy un per[D]dedor",
           "I'm a loser baby, so why don't you kill me?",
           "(Drive-by body-pierce)",
           "Yo, bring it on down",
