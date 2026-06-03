@@ -78,6 +78,13 @@ jobs:
             fi
           done
 
+      - name: Remove Duplicate PNG Icons from anydpi-v26
+        working-directory: ./
+        run: |
+          rm -f android/app/src/main/res/mipmap-anydpi-v26/*.png
+          rm -f android/app/src/main/res/mipmap-anydpi-*/ic_launcher.png
+          rm -f android/app/src/main/res/mipmap-anydpi-*/ic_launcher_round.png
+
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
