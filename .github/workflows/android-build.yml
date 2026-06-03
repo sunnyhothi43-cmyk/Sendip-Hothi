@@ -57,34 +57,19 @@ jobs:
             exit 1
           fi
 
-      - name: Ensure Gradle Wrapper Exists
-        run: |
-          echo "Checking for wrapper JAR..."
-          ls -la gradle/wrapper/ || echo "wrapper directory missing"
-          
-          if [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "Wrapper JAR missing or empty. Downloading official Gradle 8.7..."
-            mkdir -p gradle/wrapper
-            curl -sSL "https://services.gradle.org/distributions/gradle-8.7-bin.zip" -o /tmp/gradle-8.7-bin.zip
-            unzip -j -q /tmp/gradle-8.7-bin.zip "gradle-8.7/lib/plugins/gradle-wrapper-8.7.jar" -d gradle/wrapper/
-            mv gradle/wrapper/gradle-wrapper-8.7.jar gradle/wrapper/gradle-wrapper.jar
-            rm -f /tmp/gradle-8.7-bin.zip
-          fi
-          
-          echo "Final wrapper JAR status:"
-          ls -la gradle/wrapper/gradle-wrapper.jar
-          
-          sed -i 's/\r$//' gradlew
-          chmod +x gradlew
+      - name: Install Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
 
       - name: Clean Build
-        run: ./gradlew clean
+        run: gradle clean
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
 
       - name: Build Release AAB
-        run: ./gradlew bundleRelease
+        run: gradle bundleRelease
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
