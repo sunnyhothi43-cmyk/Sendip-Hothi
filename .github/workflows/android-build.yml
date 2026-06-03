@@ -25,6 +25,12 @@ jobs:
           java-version: '21'
           distribution: 'zulu'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -42,6 +48,14 @@ jobs:
       - name: Sync Capacitor Android Project
         working-directory: ./
         run: npx cap sync android
+
+      - name: Verify Android Project Exists
+        working-directory: ./
+        run: |
+          if [ ! -f "android/gradlew" ]; then
+            echo "ERROR: android/gradlew not found. Capacitor sync may have failed."
+            exit 1
+          fi
 
       - name: Fix Gradle Wrapper Permissions
         run: |
