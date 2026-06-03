@@ -49,14 +49,6 @@ jobs:
         working-directory: ./
         run: npx cap sync android
 
-      - name: Verify Android Project Exists
-        working-directory: ./
-        run: |
-          if [ ! -f "android/gradlew" ]; then
-            echo "ERROR: android/gradlew not found. Capacitor sync may have failed."
-            exit 1
-          fi
-
       - name: Install Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
