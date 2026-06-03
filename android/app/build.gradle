@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 
 android {
     namespace = "com.chordstream.app"
-    compileSdk = rootProject.ext.compileSdkVersion
+    compileSdk = 36
     defaultConfig {
         applicationId "com.chordstream.app"
         minSdkVersion rootProject.ext.minSdkVersion
