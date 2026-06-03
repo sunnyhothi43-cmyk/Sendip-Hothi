@@ -45,7 +45,11 @@ jobs:
           chmod +x android/gradlew
 
       - name: Set up Gradle
+        # setup-gradle@v4 automatically auto-discovers and caches gradle structures under all subdirectories (including 'android/'), 
+        # making the deprecated 'build-root-directory' input unnecessary and resolving the unexpected input warning.
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
 
       - name: Clean build folders to remove obsolete cache and old assets
         run: |
