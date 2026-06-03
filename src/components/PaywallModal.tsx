@@ -88,7 +88,7 @@ export function PaywallModal({
                   {
                     id: 'monthly',
                     name: 'Monthly',
-                    price: '€10',
+                    price: '€6.99',
                     interval: '/mo',
                     priceId: import.meta.env.VITE_STRIPE_MONTHLY_PRICE_ID,
                     features: ['Unlimited Favorites', 'Core Features'],
@@ -98,17 +98,17 @@ export function PaywallModal({
                   {
                     id: 'yearly',
                     name: 'Annual',
-                    price: '€60',
+                    price: '€49.99',
                     interval: '/yr',
                     priceId: import.meta.env.VITE_STRIPE_YEARLY_PRICE_ID,
-                    features: ['Save €60/year', 'Advanced Tools'],
+                    features: ['Save over €30/year', 'Advanced Tools'],
                     badge: 'Value',
                     color: 'red'
                   },
                   {
                     id: 'lifetime',
                     name: 'Lifetime',
-                    price: '€120',
+                    price: '€99.99',
                     interval: '',
                     priceId: import.meta.env.VITE_STRIPE_LIFETIME_PRICE_ID,
                     features: ['Forever Access', 'Future Updates'],

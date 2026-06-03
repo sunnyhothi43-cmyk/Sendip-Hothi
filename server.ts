@@ -30,6 +30,32 @@ function getGemini(): GoogleGenAI {
   return aiClient;
 }
 
+function handleGeminiError(error: any, res: any) {
+  console.error("[GEMINI ERROR HANDLER]:", error);
+  const errMsg = error?.message || (typeof error === 'string' ? error : "");
+  const errStatus = error?.status || error?.statusCode || 500;
+  
+  const isKeyError = 
+    !process.env.GEMINI_API_KEY ||
+    errMsg.includes("API key expired") || 
+    errMsg.includes("API_KEY_INVALID") || 
+    errMsg.includes("API key") || 
+    errMsg.includes("key expired") ||
+    errMsg.includes("renew the API key") ||
+    (errMsg.includes("INVALID_ARGUMENT") && (errMsg.includes("expired") || errMsg.includes("key") || errMsg.includes("Key") || errMsg.includes("API")));
+
+  if (isKeyError || errStatus === 401) {
+    return res.status(401).json({
+      error: "The Gemini API key is invalid or has expired. Please go to Settings (gear icon in top right) -> Secrets to renew or update your GEMINI_API_KEY environment variable. If you don't have a personal key, click 'Auto-Generate' or input a fresh API Key.",
+      isExpiredKey: true
+    });
+  }
+
+  return res.status(errStatus >= 400 && errStatus < 600 ? errStatus : 500).json({
+    error: errMsg || "An unexpected error occurred while communicating with Gemini."
+  });
+}
+
 function getSanitizedKey(): string {
   const rawKey = process.env.STRIPE_SECRET_KEY;
   if (!rawKey) {
@@ -176,8 +202,7 @@ async function startServer() {
       if (!text) throw new Error("No data received from Gemini");
       res.json(JSON.parse(text));
     } catch (error: any) {
-      console.error("Gemini /api/song-data error:", error);
-      res.status(500).json({ error: error.message });
+      return handleGeminiError(error, res);
     }
   });
 
@@ -229,8 +254,7 @@ async function startServer() {
       const data = JSON.parse(text);
       res.json(data.results || []);
     } catch (error: any) {
-      console.warn("Gemini /api/search-songs error:", error);
-      res.json([]);
+      return handleGeminiError(error, res);
     }
   });
 
@@ -273,8 +297,7 @@ async function startServer() {
       const data = JSON.parse(text);
       res.json(data.recommendations || []);
     } catch (error: any) {
-      console.warn("Gemini /api/recommendations error:", error);
-      res.json([]);
+      return handleGeminiError(error, res);
     }
   });
 
@@ -311,6 +334,10 @@ async function startServer() {
       res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("Gemini /api/chord-fingering error:", error);
+      const errMsg = error?.message || "";
+      if (errMsg.includes("API key") || errMsg.includes("expired") || !process.env.GEMINI_API_KEY) {
+        return handleGeminiError(error, res);
+      }
       res.json(null);
     }
   });
@@ -348,8 +375,7 @@ async function startServer() {
       const text = response?.text || "Your feedback was logged. Our engineering team is on manual review!";
       res.json({ text });
     } catch (error: any) {
-      console.error("Gemini /api/feedback-chat error:", error);
-      res.status(500).json({ error: error.message });
+      return handleGeminiError(error, res);
     }
   });
 

@@ -18,6 +18,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@capacitor-community/google-login": [
+        "./src/shims/google-login-shim.ts"
       ]
     },
     "allowImportingTsExtensions": true,

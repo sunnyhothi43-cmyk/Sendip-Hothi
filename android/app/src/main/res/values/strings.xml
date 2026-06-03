@@ -4,4 +4,6 @@
     <string name="title_activity_main">Chordstream</string>
     <string name="package_name">com.chordstream.app</string>
     <string name="custom_url_scheme">com.chordstream.app</string>
+    <!-- Add this line for Google Login -->
+    <string name="server_client_id">YOUR_WEB_CLIENT_ID.apps.googleusercontent.com</string>
 </resources>

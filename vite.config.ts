@@ -13,6 +13,7 @@ export default defineConfig(({mode}) => {
     resolve: {
       alias: {
         '@': path.resolve(process.cwd(), '.'),
+        '@capacitor-community/google-login': path.resolve(process.cwd(), './src/shims/google-login-shim.ts'),
       },
     },
     server: {

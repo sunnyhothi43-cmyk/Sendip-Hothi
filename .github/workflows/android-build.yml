@@ -19,6 +19,19 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      - name: Inject Custom Google OAuth Web Client ID and Environment Variables
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID || secrets.VITE_GOOGLE_CLIENT_ID }}
+        working-directory: ./
+        run: |
+          if [ -n "$GOOGLE_CLIENT_ID" ]; then
+            echo "Google Client ID secret found. Injecting securely..."
+            sed -i "s/YOUR_WEB_CLIENT_ID.apps.googleusercontent.com/$GOOGLE_CLIENT_ID/g" android/app/src/main/res/values/strings.xml
+            echo "VITE_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID" >> .env
+          else
+            echo "No Google Client ID secret found in GitHub repository secrets. Skipping secure injection."
+          fi
+
       - name: Set up Java JDK 21
         uses: actions/setup-java@v4
         with:

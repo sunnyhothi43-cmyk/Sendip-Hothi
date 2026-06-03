@@ -9,7 +9,8 @@ import {
   signInAnonymously,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  signInWithCredential
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -27,6 +28,8 @@ import {
   increment,
   updateDoc
 } from 'firebase/firestore';
+import { Capacitor } from '@capacitor/core';
+import { GoogleLogin } from '@capacitor-community/google-login';
 import firebaseConfig from '../firebase-applet-config.json';
 
 console.log('[FIREBASE] Raw config from JSON:', firebaseConfig);
@@ -77,10 +80,39 @@ console.log('[FIREBASE] db exported as:', db ? 'Firestore Instance' : 'undefined
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
+// Initialize native Google Login (call this once at app startup)
+export const initializeGoogleLogin = () => {
+  if (Capacitor.isNativePlatform()) {
+    console.log('[FIREBASE] Initializing native Google Login...');
+    GoogleLogin.initialize({
+      clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '419195353591-5ve27bkkon1shk07n8b030qshhie0scv.apps.googleusercontent.com',
+      scopes: ['profile', 'email'],
+      grantOfflineAccess: true,
+    });
+  }
+};
+
+// Start initialization automatically on module load
+initializeGoogleLogin();
+
 export async function loginWithGoogle() {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    if (Capacitor.isNativePlatform()) {
+      console.log('[FIREBASE] Executing native Google Sign-In...');
+      const result = await GoogleLogin.signIn();
+      if (!result.authentication || !result.authentication.idToken) {
+        throw new Error('No authentication token returned from native Google Sign-in');
+      }
+      
+      console.log('[FIREBASE] Native Sign-In success, exchanging for Firebase credential...');
+      const credential = GoogleAuthProvider.credential(result.authentication.idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      return userCredential.user;
+    } else {
+      console.log('[FIREBASE] Executing web popup Google Sign-In...');
+      const result = await signInWithPopup(auth, googleProvider);
+      return result.user;
+    }
   } catch (error: any) {
     if (error.code !== 'auth/popup-closed-by-user') {
       console.error("Login failed:", error);

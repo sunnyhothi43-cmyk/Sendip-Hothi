@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Search, Music, Settings, ArrowUp, ArrowDown, Play, Pause, RotateCcw, Minus, Plus, Home, X, Printer, LogIn, LogOut, Heart, Trash2, Sparkles, Info, Zap, CheckCircle } from 'lucide-react';
+import { Search, Music, Settings, ArrowUp, ArrowDown, Play, Pause, RotateCcw, Minus, Plus, Home, X, Printer, LogIn, LogOut, Heart, Trash2, Sparkles, Info, Zap, CheckCircle, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { fetchSongData, SongData, fetchRecommendations, searchSongs, fetchChordFingering } from './services/geminiService';
 import { transposeLine, parseChordSegments, getEasyKeyOffset, transposeChord } from './lib/musicUtils';
@@ -92,6 +92,19 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<{ title: string; artist: string }[]>([]);
+  const [recentSongs, setRecentSongs] = useState<{ title: string; artist: string }[]>(() => {
+    try {
+      const saved = storage.getItem('pref_recent_songs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn("Failed to load initial recent songs:", e);
+    }
+    return [];
+  });
+  const [activeTab, setActiveTab] = useState<'library' | 'recent' | 'discover'>('library');
   const [loadingRecs, setLoadingRecs] = useState(false);
   const lastRecsKeyRef = useRef<string>("");
   const isAutoAdjustingScrollSpeedRef = useRef(false);
@@ -103,7 +116,20 @@ export default function App() {
   });
   const [isScrolling, setIsScrolling] = useState(false);
   const [fontSize, setFontSize] = useState(() => {
-    return Number(storage.getItem('pref_font_size')) || 15;
+    const saved = storage.getItem('pref_font_size');
+    if (saved) {
+      const parsed = Number(saved);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    
+    // Fallback: Start with context-aware size: Phone (14px), Tablet (16px), Laptop/Desktop (18px)
+    if (typeof window !== 'undefined') {
+      const width = window.innerWidth;
+      if (width >= 1024) return 18; // Laptop/Desktop
+      if (width >= 768) return 16;  // Tablet
+      return 14;                    // Phone
+    }
+    return 15;
   }); 
   const [showStrummingPattern, setShowStrummingPattern] = useState(() => {
     const saved = storage.getItem('pref_show_strumming');
@@ -169,6 +195,22 @@ export default function App() {
         ...s,
         strummingPattern: strumPattern || "No strumming suggestions"
       });
+
+      // Update recently viewed songs
+      try {
+        setRecentSongs(prev => {
+          const isSameSongSimple = (item: { title: string; artist: string }, target: { title: string; artist: string }) => {
+            return item.title.toLowerCase().trim() === target.title.toLowerCase().trim() &&
+                   item.artist.toLowerCase().trim() === target.artist.toLowerCase().trim();
+          };
+          const filtered = prev.filter(item => !isSameSongSimple(item, s));
+          const updated = [{ title: s.title, artist: s.artist }, ...filtered].slice(0, 5);
+          storage.setItem('pref_recent_songs', JSON.stringify(updated));
+          return updated;
+        });
+      } catch (err) {
+        console.warn("Failed to save recently viewed song:", err);
+      }
     } else {
       setSong(null);
     }
@@ -1065,6 +1107,27 @@ export default function App() {
     };
   }, [isScrolling, scrollStep]);
 
+  const togglePlayScroll = () => {
+    if (!isScrolling) {
+      // Align the very first section (e.g. Intro) inline with the Sight Reading Guide line
+      const sectionHeader = document.querySelector('.section-header-print');
+      if (sectionHeader) {
+        const rect = sectionHeader.getBoundingClientRect();
+        // The tracking overlay is at top-[35%] of the viewport
+        const targetViewportY = window.innerHeight * 0.35;
+        const scrollDelta = rect.top - targetViewportY;
+        
+        window.scrollBy({
+          top: scrollDelta,
+          behavior: 'smooth'
+        });
+      }
+      setIsScrolling(true);
+    } else {
+      setIsScrolling(false);
+    }
+  };
+
   const handleLogin = async () => {
     setIsLoginModalOpen(true);
   };
@@ -1215,11 +1278,14 @@ export default function App() {
       )}
 
       {/* Header */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-neutral-950/98 border-b border-neutral-800/80 px-3 py-1.5 backdrop-blur-xl shadow-xl">
-        <div className="max-w-6xl mx-auto flex items-center gap-2">
+      <nav 
+        className="fixed top-0 left-0 right-0 z-50 bg-neutral-950/98 border-b border-neutral-800/80 px-2 sm:px-3 backdrop-blur-xl shadow-xl"
+        style={{ paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))', paddingBottom: '0.5rem' }}
+      >
+        <div className="max-w-6xl mx-auto flex items-center gap-1 sm:gap-2">
           <button 
             onClick={goHome}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-900 border border-neutral-800 rounded-lg font-black text-white uppercase tracking-widest text-[9px] hover:bg-neutral-800 transition-all shadow-sm group active:scale-95"
+            className="flex items-center gap-1.5 px-2 py-1 bg-neutral-900 border border-neutral-800 rounded-lg font-black text-white uppercase tracking-widest text-[9px] hover:bg-neutral-800 transition-all shadow-sm group active:scale-95"
           >
             <Home className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
             <span className="hidden sm:block">Home</span>
@@ -1230,7 +1296,7 @@ export default function App() {
           {song && (
             <button 
               onClick={handlePrint}
-              className="p-1.5 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-neutral-400 hover:text-amber-500 hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1.5 px-3 shadow-sm group"
+              className="p-1 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-neutral-400 hover:text-amber-500 hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1 px-1.5 sm:px-3 shadow-sm group"
               title="Print Song Sheet to PDF"
             >
               <Printer className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
@@ -1238,19 +1304,19 @@ export default function App() {
             </button>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button 
               onClick={() => setIsSupportOpen(true)}
-              className="p-1.5 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-neutral-400 hover:text-amber-500 hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1.5 px-3 shadow-sm group cursor-pointer"
+              className="p-1 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-neutral-400 hover:text-amber-500 hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1 px-1.5 sm:px-3 shadow-sm group cursor-pointer"
               title="Open Support Assistant"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500 group-hover:scale-110 transition-transform" />
-              <span className="text-[9px] font-black uppercase tracking-widest">Support</span>
+              <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">Support</span>
             </button>
 
             <button 
               onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-              className="relative p-1.5 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-white hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1.5 px-3 shadow-sm group"
+              className="relative p-1 bg-neutral-900 border border-neutral-800 rounded-lg transition-all text-white hover:border-amber-500/50 hover:bg-neutral-800 active:scale-95 flex items-center gap-1 px-1.5 sm:px-3 shadow-sm group"
               title="App Settings & Subscription"
             >
               <Settings className="w-3.5 h-3.5 group-hover:rotate-45 transition-transform" />
@@ -1268,36 +1334,36 @@ export default function App() {
               <button 
                 onClick={handleCreatePortalSession}
                 disabled={isProcessingPayment}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 active:scale-95 shadow-xl shadow-amber-500/30"
+                className="px-2.5 sm:px-5 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1 sm:gap-2 active:scale-95 shadow-xl shadow-amber-500/30"
               >
                 <Zap className="w-4 h-4 fill-black" />
-                <span className="hidden xs:inline">Subscription</span>
+                <span className="hidden sm:inline">Subscription</span>
               </button>
             )}
 
-            <div className="w-px h-6 bg-neutral-800/80 mx-1" />
+            <div className="w-px h-6 bg-neutral-800/80 mx-0.5" />
 
             {!user ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button 
                   onClick={handleGoogleLogin}
-                  className="p-2.5 bg-white text-black rounded-lg hover:bg-neutral-200 transition-all shadow-xl active:scale-95 group"
+                  className="p-1.5 sm:p-2.5 bg-white text-black rounded-lg hover:bg-neutral-200 transition-all shadow-xl active:scale-95 group"
                   title="Sign in with Google"
                 >
-                  <svg className="w-4 h-4 select-none" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 select-none" viewBox="0 0 24 24">
                     <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                     <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                     <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
                     <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                   </svg>
                 </button>
-                <div className="w-px h-6 bg-neutral-800/80 mx-1" />
+                <div className="w-px h-6 bg-neutral-800/80 mx-0.5" />
                 <button 
                   onClick={() => { setLoginModalDefaultMode('signin'); setIsLoginModalOpen(true); }}
-                  className="flex items-center gap-2.5 px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-lg font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-amber-500/30 active:scale-95 group"
+                  className="flex items-center gap-1.5 px-3 sm:px-6 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-lg font-black uppercase tracking-widest text-[9px] sm:text-[10px] transition-all shadow-xl shadow-amber-500/30 active:scale-95 group"
                 >
-                  <LogIn className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-                  <span>Login / Join</span>
+                  <LogIn className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                  <span>Login<span className="hidden sm:inline"> / Join</span></span>
                 </button>
               </div>
             ) : (
@@ -1333,11 +1399,13 @@ export default function App() {
       </nav>
 
       {/* Main Content */}
-      <main className={cn(
-        song ? "pt-16" : "pt-10",
-        "pb-32 px-4 transition-all duration-300 mx-auto overflow-x-hidden touch-pan-y overscroll-x-none",
-        song ? "w-full max-w-xl" : "max-w-5xl"
-      )}>
+      <main 
+        className={cn(
+          "pb-32 px-4 transition-all duration-300 mx-auto overflow-x-hidden touch-pan-y overscroll-x-none",
+          song ? "w-full max-w-xl" : "max-w-5xl"
+        )}
+        style={{ paddingTop: song ? 'calc(5rem + env(safe-area-inset-top, 0px))' : 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}
+      >
         {loading && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="w-8 h-8 border-2 border-amber-500/10 border-t-amber-500 rounded-full animate-spin" />
@@ -1346,8 +1414,28 @@ export default function App() {
         )}
 
         {error && (
-          <div className="bg-red-500/5 border border-red-500/20 text-red-500 text-[10px] uppercase tracking-widest py-3 px-4 rounded text-center mb-12">
-            {error}
+          <div className={cn(
+            "rounded-xl py-4 px-5 text-center mb-8 border transition-all animate-in fade-in duration-200",
+            error.toLowerCase().includes("api key") || error.toLowerCase().includes("expired")
+              ? "bg-amber-500/10 border-amber-500/30 text-amber-200 text-xs font-medium text-left leading-relaxed max-w-xl mx-auto"
+              : "bg-red-500/5 border-red-500/20 text-red-500 text-[10px] uppercase tracking-widest py-3 px-4 rounded text-center mb-12"
+          )}>
+            {error.toLowerCase().includes("api key") || error.toLowerCase().includes("expired") ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2.5 font-black uppercase text-[10px] tracking-wider text-amber-500">
+                  <Zap className="w-4 h-4 animate-pulse shrink-0" />
+                  <span>Gemini API Key Required</span>
+                </div>
+                <p className="text-neutral-300">
+                  {error}
+                </p>
+                <div className="text-[10px] bg-black/40 rounded p-2.5 mt-1 border border-neutral-800 font-mono text-neutral-400 select-all leading-normal">
+                  <span className="text-amber-500 font-bold">Quick Fix:</span> Click the <span className="font-sans font-extrabold text-white">Settings</span> icon (gear in top-right corner of Google AI Studio screen), open <span className="font-sans font-extrabold text-white">Secrets</span> or <span className="font-sans font-extrabold text-white font-black">Environment Variables</span>, renew/validate <strong className="text-amber-400 font-mono">GEMINI_API_KEY</strong>, and restart or retry.
+                </div>
+              </div>
+            ) : (
+              error
+            )}
           </div>
         )}
 
@@ -1441,8 +1529,54 @@ export default function App() {
               </div>
             )}
 
-            {displayLibrary && (
-              <div className="space-y-3">
+            {/* Tabs Selector for Library / Recent / Discover */}
+            <div className="flex border-b border-neutral-800 gap-1.5 px-1 mt-6">
+              <button
+                type="button"
+                onClick={() => setActiveTab('library')}
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-2 rounded-t-xl text-[10px] font-black uppercase tracking-wider transition-all border-b-2 font-sans cursor-pointer active:scale-95",
+                  activeTab === 'library'
+                    ? "border-amber-500 text-amber-500 bg-amber-500/5 font-black"
+                    : "border-transparent text-neutral-500 hover:text-white"
+                )}
+              >
+                <Heart className={cn("w-3.5 h-3.5", activeTab === 'library' && "fill-current")} />
+                <span>{user ? "Library" : "Guest Library"}</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setActiveTab('recent')}
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-2 rounded-t-xl text-[10px] font-black uppercase tracking-wider transition-all border-b-2 font-sans cursor-pointer active:scale-95",
+                  activeTab === 'recent'
+                    ? "border-amber-500 text-amber-500 bg-amber-500/5 font-black"
+                    : "border-transparent text-neutral-500 hover:text-white"
+                )}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Recent</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('discover')}
+                className={cn(
+                  "flex items-center gap-2 px-3.5 py-2 rounded-t-xl text-[10px] font-black uppercase tracking-wider transition-all border-b-2 font-sans cursor-pointer active:scale-95",
+                  activeTab === 'discover'
+                    ? "border-amber-500 text-amber-500 bg-amber-500/5 font-black"
+                    : "border-transparent text-neutral-500 hover:text-white"
+                )}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Discover</span>
+              </button>
+            </div>
+
+            {/* Library Tab */}
+            {activeTab === 'library' && displayLibrary && (
+              <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between px-2">
                   <div className="flex items-center gap-2">
                     <Heart className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
@@ -1485,59 +1619,167 @@ export default function App() {
               </div>
             )}
 
-            {/* Combined Discover Section (Classics + AI Suggestions) */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-2">
-                  <Music className="w-3.5 h-3.5 text-neutral-500" />
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Discover</h2>
+            {/* Recent Tab */}
+            {activeTab === 'recent' && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Recently Viewed</h2>
+                  </div>
+                  <span className="text-[8px] text-neutral-600 uppercase font-bold">{recentSongs.length} tracks</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  {loadingRecs && <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between px-3 py-1 border-b border-neutral-800 bg-neutral-950/30">
-                <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500">Suggested for you</span>
-                <button 
-                  onClick={handleRefreshRecs}
-                  disabled={isRefreshingRecs || loadingRecs}
-                  className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-tight text-amber-500 hover:text-amber-400 transition-colors disabled:opacity-50"
-                >
-                  <RotateCcw className={cn("w-2 h-2", (isRefreshingRecs || loadingRecs) && "animate-spin")} />
-                  Refresh
-                </button>
-              </div>
-
-              <div className="bg-neutral-900/40 border border-neutral-800 rounded-lg overflow-hidden max-h-[500px] overflow-y-auto shadow-inner">
-                {/* AI Recommendations */}
-                {recommendations && recommendations.length > 0 ? (
-                  recommendations
-                    .filter(rec => !displayLibrary.some(l => isSameSong(l, rec)))
-                    .map((rec, idx) => {
-                    const recKey = `rec-${rec.artist}-${rec.title}-${idx}`;
-                    return (
-                      <div 
-                        key={recKey} 
-                        className="group flex items-center justify-between p-1.5 px-3 border-b border-neutral-800/20 hover:bg-neutral-800/50 transition-colors cursor-pointer"
-                        onClick={() => handleSearch(undefined, `${rec.artist} - ${rec.title}`)}
-                      >
-                          <div className="flex-1 min-w-0 flex items-center gap-3">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            <div className="truncate flex items-baseline gap-2">
-                              <div className="font-black text-sm text-white truncate leading-tight group-hover:text-red-500 transition-colors uppercase italic">{rec.title}</div>
-                              <div className="text-[9px] text-neutral-500 uppercase tracking-tighter font-black shrink-0">{rec.artist}</div>
+                
+                {recentSongs.length > 0 ? (
+                  <div className="bg-neutral-900/40 border border-neutral-800 rounded-lg overflow-hidden">
+                    {recentSongs.map((rs, idx) => {
+                      const isFav = displayLibrary.some(l => isSameSong(l, rs));
+                      const rsKey = `recent-${rs.artist}-${rs.title}-${idx}`;
+                      return (
+                        <div 
+                          key={rsKey} 
+                          className="group flex items-center justify-between p-1.5 px-3 border-b border-neutral-800/20 last:border-0 hover:bg-neutral-800/50 transition-colors cursor-pointer"
+                          onClick={() => handleSearch(undefined, `${rs.artist} - ${rs.title}`)}
+                        >
+                          <div className="flex-1 min-w-0 flex items-center gap-2.5">
+                            <Music className="w-3.5 h-3.5 text-neutral-700 shrink-0" />
+                            <div className="flex-1 min-w-0 flex items-baseline gap-2 truncate">
+                              <div className="font-black text-sm text-white truncate leading-tight group-hover:text-amber-400 transition-colors uppercase italic">{rs.title}</div>
+                              <div className="text-[9px] text-neutral-500 uppercase tracking-tighter font-black shrink-0">{rs.artist}</div>
                             </div>
                           </div>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (savingId === `${rec.artist}-${rec.title}`) return;
-                              handleSaveSong(rec);
+                              if (savingId === `${rs.artist}-${rs.title}`) return;
+                              isFav ? handleUnsaveSong(rs.artist, rs.title) : handleSaveSong(rs);
+                            }}
+                            className="p-1 px-3 hover:scale-110 transition-transform text-neutral-600 hover:text-amber-500 font-bold flex items-center justify-center min-h-[32px] min-w-[32px]"
+                          >
+                            {isFav ? (
+                              <Heart className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                            ) : (
+                              savingId === `${rs.artist}-${rs.title}` ? (
+                                <RotateCcw className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+                              ) : (
+                                <Plus className="w-3.5 h-3.5 text-neutral-600 hover:text-amber-500" />
+                              )
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-neutral-900/10 border border-[#222] border-dashed rounded-xl py-8 text-center px-4">
+                    <p className="text-[9px] text-neutral-600 uppercase tracking-widest leading-relaxed">
+                      No recently viewed songs yet
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Discover Tab */}
+            {activeTab === 'discover' && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-2">
+                    <Music className="w-3.5 h-3.5 text-neutral-500" />
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Discover</h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {loadingRecs && <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between px-3 py-1 border-b border-neutral-800 bg-neutral-950/30">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-neutral-500">Suggested for you</span>
+                  <button 
+                    onClick={handleRefreshRecs}
+                    disabled={isRefreshingRecs || loadingRecs}
+                    className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-tight text-amber-500 hover:text-amber-400 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    <RotateCcw className={cn("w-2 h-2", (isRefreshingRecs || loadingRecs) && "animate-spin")} />
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="bg-neutral-900/40 border border-neutral-800 rounded-lg overflow-hidden max-h-[500px] overflow-y-auto shadow-inner">
+                  {/* AI Recommendations */}
+                  {recommendations && recommendations.length > 0 ? (
+                    recommendations
+                      .filter(rec => !displayLibrary.some(l => isSameSong(l, rec)))
+                      .map((rec, idx) => {
+                      const recKey = `rec-${rec.artist}-${rec.title}-${idx}`;
+                      return (
+                        <div 
+                          key={recKey} 
+                          className="group flex items-center justify-between p-1.5 px-3 border-b border-neutral-800/20 hover:bg-neutral-800/50 transition-colors cursor-pointer"
+                          onClick={() => handleSearch(undefined, `${rec.artist} - ${rec.title}`)}
+                        >
+                            <div className="flex-1 min-w-0 flex items-center gap-3">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              <div className="truncate flex items-baseline gap-2">
+                                <div className="font-black text-sm text-white truncate leading-tight group-hover:text-red-500 transition-colors uppercase italic">{rec.title}</div>
+                                <div className="text-[9px] text-neutral-500 uppercase tracking-tighter font-black shrink-0">{rec.artist}</div>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (savingId === `${rec.artist}-${rec.title}`) return;
+                                handleSaveSong(rec);
+                              }}
+                              className="p-1 px-3 hover:scale-110 transition-transform text-neutral-600 hover:text-amber-500"
+                            >
+                              {savingId === `${rec.artist}-${rec.title}` ? (
+                                 <RotateCcw className="w-4 h-4 text-amber-500 animate-spin" />
+                              ) : (
+                                 <Plus className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })
+                  ) : !loadingRecs && (
+                     <div className="p-6 text-center text-neutral-600 text-[10px] uppercase tracking-widest font-bold">
+                       No suggestions available. Click refresh to load some!
+                     </div>
+                  )}
+
+                  {/* Preloaded Classics */}
+                  {PRELOADED_SONGS
+                    .filter(ps => !displayLibrary.some(lib => isSameSong(lib, ps)))
+                    .sort((a, b) => {
+                      const artistComp = a.artist.localeCompare(b.artist);
+                      if (artistComp !== 0) return artistComp;
+                      return a.title.localeCompare(b.title);
+                    })
+                    .map((ps, idx) => {
+                      const classicKey = `classic-${ps.artist}-${ps.title}-${idx}`;
+                      return (
+                        <div 
+                          key={classicKey} 
+                          className="group flex items-center justify-between p-1.5 px-3 border-b border-neutral-800/20 last:border-0 hover:bg-neutral-800/50 transition-colors cursor-pointer"
+                          onClick={() => selectPreloaded(ps as any)}
+                        >
+                          <div className="flex-1 min-w-0 flex items-center gap-3">
+                            <Music className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
+                            <div className="flex-1 min-w-0 flex items-baseline gap-2 truncate">
+                              <div className="font-black text-sm text-white truncate leading-tight group-hover:text-amber-400 transition-colors uppercase italic">{ps.title}</div>
+                              <div className="text-[9px] text-neutral-500 uppercase tracking-tighter font-black shrink-0">{ps.artist}</div>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (savingId === `${ps.artist}-${ps.title}`) return;
+                              handleSaveSong(ps);
                             }}
                             className="p-1 px-3 hover:scale-110 transition-transform text-neutral-600 hover:text-amber-500"
                           >
-                            {savingId === `${rec.artist}-${rec.title}` ? (
+                            {savingId === `${ps.artist}-${ps.title}` ? (
                                <RotateCcw className="w-4 h-4 text-amber-500 animate-spin" />
                             ) : (
                                <Plus className="w-4 h-4" />
@@ -1545,55 +1787,10 @@ export default function App() {
                           </button>
                         </div>
                       );
-                    })
-                ) : !loadingRecs && (
-                   <div className="p-6 text-center text-neutral-600 text-[10px] uppercase tracking-widest font-bold">
-                     No suggestions available. Click refresh to load some!
-                   </div>
-                )}
-
-                {/* Preloaded Classics */}
-                {PRELOADED_SONGS
-                  .filter(ps => !displayLibrary.some(lib => isSameSong(lib, ps)))
-                  .sort((a, b) => {
-                    const artistComp = a.artist.localeCompare(b.artist);
-                    if (artistComp !== 0) return artistComp;
-                    return a.title.localeCompare(b.title);
-                  })
-                  .map((ps, idx) => {
-                    const classicKey = `classic-${ps.artist}-${ps.title}-${idx}`;
-                    return (
-                      <div 
-                        key={classicKey} 
-                        className="group flex items-center justify-between p-1.5 px-3 border-b border-neutral-800/20 last:border-0 hover:bg-neutral-800/50 transition-colors cursor-pointer"
-                        onClick={() => selectPreloaded(ps as any)}
-                      >
-                        <div className="flex-1 min-w-0 flex items-center gap-3">
-                          <Music className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
-                          <div className="flex-1 min-w-0 flex items-baseline gap-2 truncate">
-                            <div className="font-black text-sm text-white truncate leading-tight group-hover:text-amber-400 transition-colors uppercase italic">{ps.title}</div>
-                            <div className="text-[9px] text-neutral-500 uppercase tracking-tighter font-black shrink-0">{ps.artist}</div>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (savingId === `${ps.artist}-${ps.title}`) return;
-                            handleSaveSong(ps);
-                          }}
-                          className="p-1 px-3 hover:scale-110 transition-transform text-neutral-600 hover:text-amber-500"
-                        >
-                          {savingId === `${ps.artist}-${ps.title}` ? (
-                             <RotateCcw className="w-4 h-4 text-amber-500 animate-spin" />
-                          ) : (
-                             <Plus className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    );
-                  })}
+                    })}
+                </div>
               </div>
-            </div>
+            )}
 
             
             {!user && (
@@ -2361,7 +2558,7 @@ export default function App() {
             {/* Main playback control line */}
             <div className="flex items-center justify-between gap-2 md:gap-4">
               <button 
-                onClick={() => setIsScrolling(!isScrolling)}
+                onClick={togglePlayScroll}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider transition-all shadow-md shrink-0 cursor-pointer",
                   isScrolling 
@@ -2409,14 +2606,46 @@ export default function App() {
               </div>
             </div>
 
-            {/* Expanded section (Sight Guide Toggle only for ultimate tightness) */}
+            {/* Expanded section (Sight Guide Toggler and Text Size adjustment) */}
             {isScrollControlsExpanded && (
               <motion.div 
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-3 pt-3 border-t border-neutral-900"
+                className="mt-3 pt-3 border-t border-neutral-900 space-y-2.5 pointer-events-auto"
               >
+                {/* Text Size Control */}
+                <div className="flex items-center justify-between bg-neutral-900/60 p-2 rounded-xl border border-neutral-900 gap-3">
+                  <div className="flex flex-col text-left shrink-0">
+                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-wider leading-none mb-0.5">Text Size</span>
+                    <span className="text-[10px] font-mono font-bold text-amber-500">{fontSize}px</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-1 justify-end">
+                    <button 
+                      onClick={() => setFontSize(prev => Math.max(10, prev - 1))} 
+                      className="p-1 px-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-700 transition-all cursor-pointer text-[10px] font-black active:scale-[0.93]"
+                      title="Smaller Text"
+                    >
+                      A-
+                    </button>
+                    <input 
+                      type="range" 
+                      min="10" 
+                      max="30" 
+                      value={fontSize} 
+                      onChange={(e) => setFontSize(parseInt(e.target.value))} 
+                      className="w-20 xs:w-28 sm:w-36 h-1 accent-amber-500 bg-neutral-950 rounded-lg appearance-none cursor-pointer" 
+                    />
+                    <button 
+                      onClick={() => setFontSize(prev => Math.min(30, prev + 1))} 
+                      className="p-1 px-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-neutral-400 hover:text-white hover:border-neutral-700 transition-all cursor-pointer text-[10px] font-black active:scale-[0.93]"
+                      title="Larger Text"
+                    >
+                      A+
+                    </button>
+                  </div>
+                </div>
+
                 {/* Sight Reading Guide Toggler */}
                 <div className="flex items-center justify-between bg-neutral-900/60 p-2 rounded-xl border border-neutral-900">
                   <div className="flex flex-col text-left">
