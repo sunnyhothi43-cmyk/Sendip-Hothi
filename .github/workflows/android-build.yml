@@ -59,14 +59,21 @@ jobs:
 
       - name: Ensure Gradle Wrapper Exists
         run: |
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "Wrapper JAR missing. Generating..."
-            # Download wrapper JAR securely from Gradle's official Github repository
+          echo "Checking for wrapper JAR..."
+          ls -la gradle/wrapper/ || echo "wrapper directory missing"
+          
+          if [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "Wrapper JAR missing or empty. Downloading official Gradle 8.7..."
             mkdir -p gradle/wrapper
-            curl -sSL --fail \
-              -o gradle/wrapper/gradle-wrapper.jar \
-              https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar
+            curl -sSL "https://services.gradle.org/distributions/gradle-8.7-bin.zip" -o /tmp/gradle-8.7-bin.zip
+            unzip -j -q /tmp/gradle-8.7-bin.zip "gradle-8.7/lib/plugins/gradle-wrapper-8.7.jar" -d gradle/wrapper/
+            mv gradle/wrapper/gradle-wrapper-8.7.jar gradle/wrapper/gradle-wrapper.jar
+            rm -f /tmp/gradle-8.7-bin.zip
           fi
+          
+          echo "Final wrapper JAR status:"
+          ls -la gradle/wrapper/gradle-wrapper.jar
+          
           sed -i 's/\r$//' gradlew
           chmod +x gradlew
 
