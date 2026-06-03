@@ -49,6 +49,35 @@ jobs:
         working-directory: ./
         run: npx cap sync android
 
+      - name: Generate Valid App Icons
+        working-directory: ./
+        run: |
+          # Install ImageMagick to create valid PNGs
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          
+          # Create valid 48x48 mdpi icons
+          convert -size 48x48 xc:blue android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          convert -size 48x48 xc:green android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
+          convert -size 48x48 xc:red android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          
+          # Also fix other density folders if they exist
+          for dir in android/app/src/main/res/mipmap-*; do
+            if [ -d "$dir" ]; then
+              size=$(basename "$dir" | sed 's/mipmap-//')
+              case $size in
+                mdpi) px=48 ;;
+                hdpi) px=72 ;;
+                xhdpi) px=96 ;;
+                xxhdpi) px=144 ;;
+                xxxhdpi) px=192 ;;
+                *) px=48 ;;
+              esac
+              convert -size ${px}x${px} xc:blue "$dir/ic_launcher.png" 2>/dev/null || true
+              convert -size ${px}x${px} xc:green "$dir/ic_launcher_foreground.png" 2>/dev/null || true
+              convert -size ${px}x${px} xc:red "$dir/ic_launcher_round.png" 2>/dev/null || true
+            fi
+          done
+
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
