@@ -363,9 +363,7 @@ async function startServer() {
 
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
-        contents: [
-          { text: `User message: "${message}"\nCategory: "${category || 'general'}"` }
-        ],
+        contents: `User message: "${message}"\nCategory: "${category || 'general'}"`,
         config: {
           systemInstruction: systemPrompt,
           temperature: 0.7

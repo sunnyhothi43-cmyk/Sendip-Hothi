@@ -691,6 +691,7 @@ export default function App() {
   }, [song]);
 
   const lastTimeRef = useRef<number>(0);
+  const accumulatedScrollYRef = useRef<number>(0);
 
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isRefreshingRecs, setIsRefreshingRecs] = useState(false);
@@ -1082,12 +1083,23 @@ export default function App() {
   const requestRef = useRef<number>(null);
 
   const scrollStep = useCallback((time: number) => {
-    if (!lastTimeRef.current) lastTimeRef.current = time;
+    if (!lastTimeRef.current) {
+      lastTimeRef.current = time;
+      accumulatedScrollYRef.current = window.scrollY;
+    }
     const delta = (time - lastTimeRef.current) / 1000;
     lastTimeRef.current = time;
 
-    if (window.scrollY + window.innerHeight < document.documentElement.scrollHeight) {
-      window.scrollBy(0, scrollSpeed * delta);
+    // Detect manual user scrolling drift and sync our tracking value
+    const actualY = window.scrollY;
+    if (Math.abs(actualY - accumulatedScrollYRef.current) > 10) {
+      accumulatedScrollYRef.current = actualY;
+    }
+
+    accumulatedScrollYRef.current += scrollSpeed * delta;
+
+    if (window.scrollY + window.innerHeight < document.documentElement.scrollHeight - 2) {
+      window.scrollTo(0, Math.round(accumulatedScrollYRef.current));
       requestRef.current = requestAnimationFrame(scrollStep);
     } else {
       setIsScrolling(false);
@@ -1121,6 +1133,9 @@ export default function App() {
           top: scrollDelta,
           behavior: 'smooth'
         });
+        accumulatedScrollYRef.current = window.scrollY + scrollDelta;
+      } else {
+        accumulatedScrollYRef.current = window.scrollY;
       }
       setIsScrolling(true);
     } else {

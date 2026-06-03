@@ -208,6 +208,10 @@ export function LoginModal({ isOpen, onClose, fontSize, isEasyMode, scrollSpeed,
                       Continue with Google
                     </button>
 
+                    <p className="text-[9px] text-neutral-500 text-center leading-normal px-2 select-none uppercase tracking-wide">
+                      Note: If Google Login fails or is blocked, you may be in a restricted preview frame. Open the app in a new tab using the top-right button, or use the email auth below.
+                    </p>
+
                     <div className="relative py-2">
                       <div className="absolute inset-0 flex items-center">
                         <div className="w-full border-t border-white/5"></div>
