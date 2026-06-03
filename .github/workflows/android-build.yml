@@ -49,41 +49,53 @@ jobs:
         working-directory: ./
         run: npx cap sync android
 
-      - name: Generate Valid App Icons
+      - name: Fix All Corrupted PNG Images
         working-directory: ./
         run: |
-          # Install ImageMagick to create valid PNGs
           sudo apt-get update && sudo apt-get install -y imagemagick
           
-          # Create valid 48x48 mdpi icons
-          convert -size 48x48 xc:blue android/app/src/main/res/mipmap-mdpi/ic_launcher.png
-          convert -size 48x48 xc:green android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
-          convert -size 48x48 xc:red android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          # Function to create a valid PNG at specific size
+          fix_png() {
+            local file="$1"
+            local size="$2"
+            if [ -f "$file" ]; then
+              # Check if it's a valid PNG by trying to identify it
+              if ! identify "$file" >/dev/null 2>&1; then
+                echo "Fixing corrupted: $file"
+                convert -size "${size}x${size}" xc:blue "$file"
+              fi
+            fi
+          }
           
-          # Also fix other density folders if they exist
-          for dir in android/app/src/main/res/mipmap-*; do
-            if [ -d "$dir" ]; then
-              size=$(basename "$dir" | sed 's/mipmap-//')
-              case $size in
-                mdpi) px=48 ;;
-                hdpi) px=72 ;;
-                xhdpi) px=96 ;;
-                xxhdpi) px=144 ;;
-                xxxhdpi) px=192 ;;
-                *) px=48 ;;
-              esac
-              convert -size ${px}x${px} xc:blue "$dir/ic_launcher.png" 2>/dev/null || true
-              convert -size ${px}x${px} xc:green "$dir/ic_launcher_foreground.png" 2>/dev/null || true
-              convert -size ${px}x${px} xc:red "$dir/ic_launcher_round.png" 2>/dev/null || true
+          # Fix mipmap icons
+          fix_png "android/app/src/main/res/mipmap-mdpi/ic_launcher.png" 48
+          fix_png "android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png" 48
+          fix_png "android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png" 48
+          
+          # Fix splash screens
+          fix_png "android/app/src/main/res/drawable/splash.png" 192
+          fix_png "android/app/src/main/res/drawable-land-mdpi/splash.png" 192
+          fix_png "android/app/src/main/res/drawable-port-mdpi/splash.png" 192
+          
+          # Fix any other PNGs that might be corrupted
+          find android/app/src/main/res -name "*.png" | while read file; do
+            if ! identify "$file" >/dev/null 2>&1; then
+              echo "Fixing corrupted PNG: $file"
+              # Determine approximate size from path
+              if echo "$file" | grep -q "mdpi"; then size=48
+              elif echo "$file" | grep -q "hdpi"; then size=72
+              elif echo "$file" | grep -q "xhdpi"; then size=96
+              elif echo "$file" | grep -q "xxhdpi"; then size=144
+              elif echo "$file" | grep -q "xxxhdpi"; then size=192
+              elif echo "$file" | grep -q "splash"; then size=192
+              else size=96
+              fi
+              convert -size "${size}x${size}" xc:blue "$file"
             fi
           done
-
-      - name: Remove Duplicate PNG Icons from anydpi-v26
-        working-directory: ./
-        run: |
-          rm -f android/app/src/main/res/mipmap-anydpi-v26/*.png
-          rm -f android/app/src/main/res/mipmap-anydpi-*/ic_launcher.png
-          rm -f android/app/src/main/res/mipmap-anydpi-*/ic_launcher_round.png
+          
+          # Also remove any duplicate PNGs in anydpi-v26 folders
+          find android/app/src/main/res -path "*/mipmap-anydpi*/*.png" -delete
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
